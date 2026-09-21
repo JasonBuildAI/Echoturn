@@ -69,6 +69,26 @@ pip install "echoturn[cli]"     # 加上 sounddevice 的麦克风 / 扬声器示
 核心只依赖 `httpx`；Web 框架与 ONNX 运行时刻意做成可选 —— 流水线只产出事件，
 怎么送出去由宿主决定。
 
+## 配置
+
+所有设置都是环境变量，**用的时候才读**（不是导入时读一次），所以常驻进程改了配置
+不用重启。断句 / 打断的那些阈值集中在 `echoturn.config.DIALS` 一张表里，
+每个数字是对着什么量出来的，见 [docs/tuning.md](docs/tuning.md)。
+
+| 环境变量 | 默认值 | 作用 |
+|---|---|---|
+| `ECHOTURN_LLM_PROVIDER` | `mock` | `mock`，或 `openai`（任何提供 OpenAI HTTP 形状的服务） |
+| `ECHOTURN_TTS_PROVIDER` | `mock` | 同上，语音合成 |
+| `ECHOTURN_ASR_PROVIDER` | `mock` | 同上，语音识别 |
+| `OPENAI_API_KEY` | — | `openai` 那三个供应商的令牌 |
+| `ECHOTURN_BASE_URL` | `https://api.openai.com/v1` | `openai` 供应商的接口根地址 |
+| `ECHOTURN_LLM_MODEL` / `ECHOTURN_TTS_MODEL` / `ECHOTURN_ASR_MODEL` | `gpt-4o-mini` / `tts-1` / `whisper-1` | 模型名 |
+| `ECHOTURN_TTS_VOICE` | `alloy` | 音色名 |
+| `ECHOTURN_MODEL_DIR` | `models` | 可选 ONNX 模型放在哪 |
+| `ECHOTURN_HTTP_POOL_SIZE` | `32` | 保持的连接数 |
+| `ECHOTURN_VAD_ENGINE` | `silero` | `silero`（模型）或 `energy`（只看音量） |
+| `ECHOTURN_IDLE_SPLIT_SEC` | `600` | 静默超过这么久就重开上下文 |
+
 ## 接口
 
 ```python

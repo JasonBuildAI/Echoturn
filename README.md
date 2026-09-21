@@ -85,6 +85,27 @@ pip install "echoturn[cli]"     # + sounddevice microphone/speaker demo
 The core depends only on `httpx`. Web frameworks and ONNX runtimes are extras on
 purpose: the pipeline yields plain events, and the host decides how to ship them.
 
+## Configuration
+
+Every setting is an environment variable and is read when it is used, not at
+import time, so a long-running process picks up a change without a restart. The
+turn-taking thresholds are collected in one table, `echoturn.config.DIALS`, and
+[docs/tuning.md](docs/tuning.md) explains what each one was measured against.
+
+| variable | default | what it does |
+|---|---|---|
+| `ECHOTURN_LLM_PROVIDER` | `mock` | `mock`, or `openai` for anything serving the OpenAI HTTP shape |
+| `ECHOTURN_TTS_PROVIDER` | `mock` | as above, for speech synthesis |
+| `ECHOTURN_ASR_PROVIDER` | `mock` | as above, for speech recognition |
+| `OPENAI_API_KEY` | — | bearer token for the `openai` providers |
+| `ECHOTURN_BASE_URL` | `https://api.openai.com/v1` | API root for the `openai` providers |
+| `ECHOTURN_LLM_MODEL` / `ECHOTURN_TTS_MODEL` / `ECHOTURN_ASR_MODEL` | `gpt-4o-mini` / `tts-1` / `whisper-1` | model names |
+| `ECHOTURN_TTS_VOICE` | `alloy` | voice name |
+| `ECHOTURN_MODEL_DIR` | `models` | where the optional ONNX models are looked for |
+| `ECHOTURN_HTTP_POOL_SIZE` | `32` | connections kept open for the API calls |
+| `ECHOTURN_VAD_ENGINE` | `silero` | `silero` (model) or `energy` (level only) |
+| `ECHOTURN_IDLE_SPLIT_SEC` | `600` | a quiet gap this long reopens the context |
+
 ## Interfaces
 
 ```python

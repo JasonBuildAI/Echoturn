@@ -15,6 +15,7 @@ stale while everything still looks fine.
 from __future__ import annotations
 
 import os
+from pathlib import Path
 from typing import Any, NamedTuple
 
 # Every setting this package reads starts with this. A generic name like LANG or
@@ -26,6 +27,12 @@ ENV_PREFIX = "ECHOTURN_"
 # including an empty string, because an empty value is how a file says "leave
 # the default alone" and blank-is-unset is handled before this point.
 FALSE_VALUES = ("0", "off", "no", "false")
+
+# Where the packages that are too big to ship inside a wheel are looked for. The
+# speech and endpointing models are tens of megabytes each, so they are fetched
+# on demand by a script and live outside version control - which means the
+# location has to be a setting rather than a convention.
+DEFAULT_MODEL_DIR = "models"
 
 
 def env_str(name: str, default: str = "") -> str:
@@ -194,3 +201,13 @@ def dials() -> dict[str, Any]:
             continue
         out[dial.key] = value
     return out
+
+
+def model_dir() -> Path:
+    """The directory the optional model files are looked for in.
+
+    Relative to the working directory by default, and expanded when it is not:
+    a path written as ``~/.cache/echoturn`` in a config file has to mean the same
+    thing to the script that downloads a model and to the process that loads it.
+    """
+    return Path(env_str(ENV_PREFIX + "MODEL_DIR", DEFAULT_MODEL_DIR)).expanduser()

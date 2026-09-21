@@ -113,3 +113,10 @@ def test_a_value_outside_the_allowed_set_falls_back(monkeypatch):
     assert config.dials()["vad_engine"] == "silero"
     monkeypatch.setenv("ECHOTURN_VAD_ENGINE", "ENERGY")
     assert config.dials()["vad_engine"] == "energy"
+
+
+def test_the_model_directory_is_a_setting_and_expands_a_home_path(monkeypatch):
+    monkeypatch.delenv("ECHOTURN_MODEL_DIR", raising=False)
+    assert str(config.model_dir()) == config.DEFAULT_MODEL_DIR
+    monkeypatch.setenv("ECHOTURN_MODEL_DIR", "~/.cache/echoturn")
+    assert "~" not in str(config.model_dir())
