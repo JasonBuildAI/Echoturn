@@ -80,3 +80,8 @@ def test_the_version_is_not_declared_twice():
     assert "version" not in PYPROJECT
     package = (ROOT / "src/echoturn/__init__.py").read_text("utf-8")
     assert re.search(r'__version__ = "\d', package)
+
+
+def test_the_package_says_it_is_typed():
+    """A type checker only reads annotations for a package that claims them."""
+    assert (ROOT / "src/echoturn/py.typed").is_file()
