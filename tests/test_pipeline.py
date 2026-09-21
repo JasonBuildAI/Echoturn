@@ -253,16 +253,24 @@ def test_a_cancelled_turn_exits_within_one_poll_interval(pool):
 
 
 def test_closing_the_generator_abandons_the_rest_of_the_work(pool):
-    tts = FakeTTS(delays=[0.3] * 8)
-    llm = FakeLLM([SENTENCE_A] * 8)
+    # One sentence every 300 ms, so the pipeline cannot have submitted the whole
+    # reply by the time the first chunk is ready. With an instant model all eight
+    # chunks are submitted at once, and then whether the pool got to the queued
+    # ones before the abort is a race with the machine - which is how this test
+    # came to fail on a busy laptop and pass on an idle one.
+    tts = FakeTTS(delays=[0.2] * 12)
+    llm = FakeLLM([SENTENCE_A] * 12, delay=0.3)
     turn = TurnInput("hello")
     gen = run_turn(turn, deps_for(llm, tts, pool))
     for event in gen:
         if event["type"] == "audio":
             break
     gen.close()
-    time.sleep(0.5)
-    assert tts.streamed < 8
+    time.sleep(0.4)
+    settled = tts.streamed
+    time.sleep(0.8)
+    assert tts.streamed == settled, "synthesis started after the caller left"
+    assert settled < 12, "the whole reply was synthesised after the caller left"
 
 
 def test_a_voice_call_flushes_the_first_chunk_earlier(pool):
