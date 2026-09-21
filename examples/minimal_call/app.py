@@ -29,6 +29,7 @@ from typing import Any
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from echoturn.audio import decode_16k_mono
@@ -42,6 +43,9 @@ from echoturn.vad import build_vad
 
 HERE = Path(__file__).resolve().parent
 PAGE = HERE / "index.html"
+# The browser client lives in the repository, not in the Python package: it is
+# shipped as modules for a page to import, and this is where a page finds it.
+CLIENT_DIR = HERE.parent.parent / "clients"
 
 # The one thing this demo has to decide for itself. A host would use its own
 # product's prompt here; a system line is not something a pipeline can guess.
@@ -150,6 +154,12 @@ def create_app(
     @app.get("/")
     def page() -> FileResponse:
         return FileResponse(PAGE)
+
+    # Served from its own directory so that `worklet.js` sits next to the module
+    # that loads it: the client resolves the processor against its own URL, and
+    # a page that has to tell it where the file is has a second place to be
+    # wrong about it.
+    app.mount("/client", StaticFiles(directory=CLIENT_DIR), name="client")
 
     @app.get("/config")
     def config() -> dict:

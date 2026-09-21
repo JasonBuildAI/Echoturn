@@ -63,6 +63,19 @@ def test_the_config_route_is_the_dial_table_itself(demo):
     assert values == dials()
 
 
+def test_the_browser_client_is_served_beside_the_page(demo):
+    """A page imports the client, so the demo has to be able to hand it over."""
+    client = build(demo)
+    entry = client.get("/client/echoturn-client.js")
+    assert entry.status_code == 200
+    assert "javascript" in entry.headers["content-type"]
+    # The processor is loaded by the client from its own directory, so the two
+    # have to be served from the same place.
+    worklet = client.get("/client/worklet.js")
+    assert worklet.status_code == 200
+    assert "echoturn-mic" in worklet.text
+
+
 def test_a_turn_streams_the_events_the_client_expects(demo):
     response = build(demo).post("/api/turn", json={"text": "hello"})
     assert response.status_code == 200
