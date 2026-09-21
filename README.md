@@ -4,6 +4,8 @@
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](pyproject.toml)
 
+**English** · [简体中文](README.zh-CN.md)
+
 **A provider-agnostic pipeline for realtime voice conversation.**
 
 Echoturn takes the boring, hard part of a voice assistant — the part that makes
@@ -28,6 +30,21 @@ Everything above is provider-agnostic and runs offline against mock providers.
 
 > **Status: early.** The pipeline, providers, VAD and demo are usable; the
 > public API is stabilising. See [CHANGELOG.md](CHANGELOG.md).
+
+## Why Echoturn
+
+| advantage | what it means in practice |
+|---|---|
+| **One dependency in the core** | `pip install echoturn` and read all of it: no web framework, no runtime, no account, no telemetry. The web, ONNX and device pieces are extras you opt into. |
+| **A contract small enough to port** | Seven events are the whole public surface, so the transport is yours. The browser demo and the terminal demo are two hosts for the same generator. |
+| **Your memory and persona layer stays yours** | Echoturn remembers nothing and decides nothing about what the model is told: it hands you a turn, you assemble the prompt. |
+| **Turn-taking that admits when it is guessing** | "Is this sentence finished?" is measured - how much real speech there was, plus an endpointing model - and falls back to the silence deadline only when it must. Missing models are reported, not swallowed. |
+| **Interruptions keep the user's words** | Speak over synthesis and what you said becomes the opening of the next turn, with playback gated against the assistant's own echo. |
+| **Audio cannot play out of order** | Synthesis finishes out of order by nature; playback is ordered strictly by chunk index, so nothing is skipped, doubled or interleaved. |
+| **First sound before the last token** | Text is flushed to synthesis in small chunks while the model is still writing. `bench/latency.py --compare` shows you where that wins - and it also shows you where it loses. |
+| **Offline by construction** | Mock ASR, LLM and TTS run the whole pipeline with no key, no network and no model download; CI is green on Python 3.10-3.12 with no secrets. |
+
+The other half of that story is written down too: what the bigger choices do better, the cost shape of a hosted audio-native session, and the cases where you should reach for them instead of this. All of it is in [docs/positioning.md](docs/positioning.md).
 
 ## How a turn flows
 
@@ -155,8 +172,11 @@ Events emitted by `run_turn` (one dict per event, SSE-ready):
 ## Tuning
 
 All thresholds live in one table (`echoturn.config.DIALS`) and are read from the
-environment at call time. The defaults are measured values, not guesses — see
-[docs/tuning.md](docs/tuning.md) for the reasoning behind each one.
+environment at call time. The defaults were carried over from a pipeline that was
+already running rather than invented at the keyboard, and
+[docs/tuning.md](docs/tuning.md) records what each one was measured against -
+including the one that is a starting point rather than a measurement, which
+[docs/turn-taking.md](docs/turn-taking.md) flags where that number is defined.
 
 The chunk thresholds are the ones with a number attached to a decision, and
 [docs/benchmarks.md](docs/benchmarks.md) is how to put that number on your own
@@ -167,6 +187,7 @@ machine: `python bench/latency.py --compare`.
 | document | what it covers |
 |---|---|
 | [docs/README.md](docs/README.md) | the index: what to read, and in what order |
+| [docs/positioning.md](docs/positioning.md) | what Echoturn is good at, what it does not do, and when to use a bigger stack |
 | [docs/architecture.md](docs/architecture.md) | modules, threading model, data flow |
 | [docs/events.md](docs/events.md) | the wire contract of every event |
 | [docs/providers.md](docs/providers.md) | writing an ASR/TTS/LLM adapter |
@@ -175,7 +196,8 @@ machine: `python bench/latency.py --compare`.
 | [docs/client.md](docs/client.md) | the browser client: capture, playback, barge-in |
 | [docs/benchmarks.md](docs/benchmarks.md) | what the latency report measures, and how to read it |
 
-Chinese README: [README.zh-CN.md](README.zh-CN.md).
+Every guide has a Chinese counterpart (`<name>.zh-CN.md`), and so does this
+README: [README.zh-CN.md](README.zh-CN.md).
 
 ## Contributing
 

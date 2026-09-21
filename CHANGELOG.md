@@ -8,6 +8,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+* A positioning guide in both languages (`docs/positioning.md` and its Chinese
+  counterpart): what the library is genuinely better at, what it deliberately
+  does not do, an honest comparison with the larger voice stacks (with the date
+  on every figure), the cost shape of a hosted audio-native session, and the
+  cases where another project is the right answer.
 * Core pipeline: one turn from text to ordered audio chunks, with `ack`,
   `sentence`, `audio`, `sink`, `aborted`, `done` and `error` events.
 * Text layer: reasoning trace removal, stage-direction removal, sentence
@@ -34,3 +39,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 * Two repository checks: a publish guard that fails on an identifier that must
   not leave the machine, and a warning for CJK text outside the Chinese README
   that deliberately does not fail the build.
+
+### Changed
+
+* Both READMEs open with a language switch, list the library's advantages in a
+  table that points at the positioning guide, and describe the tuning defaults
+  as carried over from a running pipeline with the one documented exception,
+  rather than as uniformly measured values.
