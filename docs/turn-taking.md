@@ -1,5 +1,7 @@
 # Turn taking
 
+Chinese: [turn-taking.zh-CN.md](turn-taking.zh-CN.md)
+
 Three questions, three answers, and they are separate because they fail
 differently.
 
