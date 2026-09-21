@@ -71,6 +71,10 @@ class TranscribeRequest(BaseModel):
     """A recording to recognise, as base64 WAV."""
 
     audio: str
+    # Defaulted here rather than at the call site so that the route reads as the
+    # contract it is: everything the recogniser is told about the clip is in the
+    # request, and a page that sends nothing but audio gets the shipped values.
+    fmt: str = "wav"
     sample_rate: int | None = None
     lang: str | None = None
 
@@ -178,7 +182,7 @@ def create_app(
         text = recogniser.transcribe(
             audio,
             sample_rate=int(req.sample_rate or values["sample_rate"]),
-            fmt="wav",
+            fmt=str(req.fmt or "wav"),
             lang=str(req.lang or values["lang"]),
         )
         return {"text": text, **probe(audio)}

@@ -166,6 +166,25 @@ def test_recognising_a_clip_reports_the_ask_and_the_probe(demo, monkeypatch, tmp
     assert "vad" in body
 
 
+def test_the_clip_format_is_the_caller_s_choice(demo, monkeypatch, tmp_path):
+    """The route passes the format through instead of assuming one."""
+    monkeypatch.setenv("ECHOTURN_MODEL_DIR", str(tmp_path))
+    asr = FakeASR("are you there")
+    wav = pcm16_to_wav(b"\x00\x00" * 16000, 16000)
+    build(demo, asr=asr).post(
+        "/api/transcribe",
+        json={
+            "audio": base64.b64encode(wav).decode(),
+            "fmt": "pcm",
+            "sample_rate": 8000,
+            "lang": "en",
+        },
+    )
+    assert asr.calls == [
+        {"bytes": len(wav), "sample_rate": 8000, "fmt": "pcm", "lang": "en"}
+    ]
+
+
 def test_the_probe_says_when_the_speech_model_is_not_there(demo, monkeypatch, tmp_path):
     """A host that thinks it installed a model has to be able to find out."""
     monkeypatch.setenv("ECHOTURN_MODEL_DIR", str(tmp_path))
