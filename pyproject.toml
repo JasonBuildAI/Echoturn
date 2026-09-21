@@ -1,0 +1,71 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "echoturn"
+dynamic = ["version"]
+description = "Provider-agnostic realtime voice conversation pipeline: turn detection, streaming generation, chunked synthesis and gap-free playback."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Apache-2.0" }
+authors = [{ name = "Echoturn contributors" }]
+keywords = [
+  "realtime",
+  "voice",
+  "speech",
+  "turn-taking",
+  "barge-in",
+  "asr",
+  "tts",
+  "llm",
+  "sse",
+]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: Apache Software License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Multimedia :: Sound/Audio :: Speech",
+]
+dependencies = ["httpx>=0.27"]
+
+[project.optional-dependencies]
+vad = ["numpy>=1.24", "onnxruntime>=1.17"]
+web = ["fastapi>=0.110", "uvicorn>=0.29"]
+cli = ["sounddevice>=0.4"]
+dev = ["pytest>=8", "pytest-cov", "ruff>=0.5"]
+
+[project.urls]
+Homepage = "https://github.com/JasonBuildAI/Echoturn"
+Repository = "https://github.com/JasonBuildAI/Echoturn"
+Issues = "https://github.com/JasonBuildAI/Echoturn/issues"
+
+[project.scripts]
+echoturn-demo = "echoturn.cli.demo:main"
+
+[tool.hatch.version]
+path = "src/echoturn/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/echoturn"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+addopts = "-q"
+filterwarnings = ["error::DeprecationWarning:echoturn.*"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py310"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "C4", "SIM"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["echoturn"]
