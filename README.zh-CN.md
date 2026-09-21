@@ -143,6 +143,7 @@ class LLMClient:
 
 | 文档 | 内容 |
 |---|---|
+| [docs/README.md](docs/README.md) | 索引：读什么，按什么顺序读 |
 | [docs/architecture.md](docs/architecture.md) | 模块、线程模型、数据流 |
 | [docs/events.md](docs/events.md) | 每个事件的线上契约 |
 | [docs/providers.md](docs/providers.md) | 怎么写一个 ASR / TTS / LLM 适配器 |
