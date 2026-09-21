@@ -1,5 +1,7 @@
 # Providers
 
+Chinese: [providers.zh-CN.md](providers.zh-CN.md)
+
 Three protocols, in `echoturn.protocols`. They are `Protocol`s rather than base
 classes on purpose: a host that had to inherit from this package would have to
 depend on it, and avoiding that is the point.
