@@ -58,6 +58,33 @@ def test_every_extra_is_named_in_the_readme():
     assert missing == []
 
 
+def _documented_commands() -> set[str]:
+    """Every ``echoturn-something`` named in either README."""
+    found: set[str] = set()
+    for name in ("README.md", "README.zh-CN.md"):
+        found.update(
+            re.findall(r"\bechoturn-[a-z][a-z-]*\b", (ROOT / name).read_text("utf-8"))
+        )
+    return found
+
+
+def test_every_command_the_readmes_name_is_one_we_install():
+    """A command in a README that the package does not install is a command
+
+    nobody can run, and the typo stays invisible until a reader types it.
+    """
+    declared = set(PYPROJECT.get("scripts", {}))
+    documented = _documented_commands()
+    assert documented, "no console script is mentioned, so this checks nothing"
+    assert sorted(documented - declared) == []
+
+
+def test_every_console_script_is_named_in_a_readme():
+    """The other direction: a script nobody is told about may as well not exist."""
+    declared = set(PYPROJECT.get("scripts", {}))
+    assert sorted(declared - _documented_commands()) == []
+
+
 def test_the_declared_readme_and_licence_are_files_that_exist():
     for key, name in (("readme", PYPROJECT["readme"]), ("license", "LICENSE")):
         assert (ROOT / name).is_file(), f"{key} names {name}, which is not there"
