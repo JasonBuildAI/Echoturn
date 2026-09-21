@@ -14,6 +14,8 @@ from pathlib import Path
 
 import tomllib
 
+from echoturn.config import DIALS
+
 ROOT = Path(__file__).resolve().parent.parent
 PROJECT = tomllib.loads((ROOT / "pyproject.toml").read_text("utf-8"))
 PYPROJECT = PROJECT["project"]
@@ -53,6 +55,23 @@ def test_every_extra_is_named_in_the_readme():
 def test_the_declared_readme_and_licence_are_files_that_exist():
     for key, name in (("readme", PYPROJECT["readme"]), ("license", "LICENSE")):
         assert (ROOT / name).is_file(), f"{key} names {name}, which is not there"
+
+
+def test_the_settings_template_names_every_setting_the_code_reads():
+    """A setting missing from the template is one nobody knows exists."""
+    template = (ROOT / ".env.example").read_text("utf-8")
+    read = set()
+    for path in (ROOT / "src").rglob("*.py"):
+        read.update(
+            re.findall(
+                r'"(ECHOTURN_[A-Z_]+|OPENAI_API_KEY)"', path.read_text("utf-8")
+            )
+        )
+    # The dial table builds its names from a prefix, so they are not string
+    # literals anywhere; the table itself is where they are asked for.
+    read.update(dial.env for dial in DIALS)
+    assert read, "no settings were found to check"
+    assert sorted(name for name in read if name not in template) == []
 
 
 def test_the_version_is_not_declared_twice():
