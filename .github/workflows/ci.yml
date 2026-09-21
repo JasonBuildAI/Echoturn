@@ -48,7 +48,7 @@ jobs:
         run: |
           for file in clients/*.js; do node --check "$file"; done
       - name: Run the client suite
-        run: node --test "clients/tests/*.test.js"
+        run: node --test clients/tests/*.test.js
 
   test:
     name: test (py${{ matrix.python }})
