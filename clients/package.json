@@ -1,0 +1,6 @@
+{
+  "name": "echoturn-client",
+  "private": true,
+  "type": "module",
+  "description": "The browser client, loaded as modules with no build step."
+}
