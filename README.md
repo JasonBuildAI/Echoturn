@@ -85,6 +85,18 @@ pip install "echoturn[cli]"     # + sounddevice microphone/speaker demo
 The core depends only on `httpx`. Web frameworks and ONNX runtimes are extras on
 purpose: the pipeline yields plain events, and the host decides how to ship them.
 
+The two ONNX models behind `echoturn[vad]` are not in the wheel, because they are
+tens of megabytes. Install them once, where the settings look for them:
+
+```bash
+echoturn-fetch-models           # download what is missing (or: python scripts/fetch_models.py)
+echoturn-fetch-models --check   # load what is installed and run it once
+```
+
+Nothing else needs them. Without the files, turns end on the silence deadline
+alone, and both `build_vad` and `build_turn` say so in their answer instead of
+degrading quietly.
+
 ## Configuration
 
 Every setting is an environment variable and is read when it is used, not at
