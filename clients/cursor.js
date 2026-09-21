@@ -99,7 +99,12 @@ export class SilenceCursor {
 
   /** The service measured how much of the recording was speech. */
   noteVoiceMs(ms) {
-    this.voiceMs = Number.isFinite(Number(ms)) ? Number(ms) : null;
+    // A missing or blank measurement means "not measured", never zero. Read as
+    // zero it would say the recording held no speech at all, and the turn would
+    // be thrown away - the recording that was made for no reason.
+    const unset = ms === null || ms === undefined || ms === "";
+    const value = unset ? NaN : Number(ms);
+    this.voiceMs = Number.isFinite(value) ? value : null;
     return this;
   }
 

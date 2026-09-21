@@ -136,6 +136,22 @@ test("the service's own speech measurement overrides the local one", () => {
   assert.equal(other.enough(), true);
 });
 
+test("a service that measured nothing leaves the local count standing", () => {
+  // Zero is a measurement - "there was no speech in this" - and it is not what
+  // an absent field means. Read as zero, every answer that left the field out
+  // would throw away a recording that was fine.
+  const c = cursor();
+  speak(c, 400);
+  c.noteVoiceMs(null);
+  assert.equal(c.voiceMs, null);
+  assert.equal(c.enough(), true);
+  c.noteVoiceMs("");
+  assert.equal(c.voiceMs, null);
+  c.noteVoiceMs(0);
+  assert.equal(c.voiceMs, 0);
+  assert.equal(c.enough(), false);
+});
+
 test("a recording nobody spoke into is abandoned", () => {
   const c = cursor();
   assert.equal(run(c, { now: 0 }), KEEP);
