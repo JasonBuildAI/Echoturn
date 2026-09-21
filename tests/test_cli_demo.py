@@ -3,20 +3,23 @@ from __future__ import annotations
 
 import base64
 import io
+import os
 import time
 
 from echoturn.audio import pcm16_to_wav
 from echoturn.cli.audio import Speaker
 from echoturn.cli.demo import (
+    PROVIDER_VARS,
     ClipCollector,
     Ear,
     Once,
     Session,
     conversation,
+    go_offline,
     main,
     parse_args,
 )
-from echoturn.providers import MockTTS
+from echoturn.providers import MockASR, MockLLM, MockTTS, make_asr, make_llm, make_tts
 from echoturn.store import InMemoryStore
 from pipeline_helpers import FakeASR, FakeLLM, FakeTTS
 
@@ -352,3 +355,24 @@ def test_a_spoken_reply_can_be_left_off_the_speaker():
         echo=lambda _: None,
     )
     assert speaker.attempts == 0
+
+
+def test_the_offline_flag_points_every_provider_at_a_stand_in(monkeypatch):
+    for name in PROVIDER_VARS:
+        monkeypatch.setenv(name, "openai")
+    go_offline()
+    assert isinstance(make_llm(), MockLLM)
+    assert isinstance(make_tts(), MockTTS)
+    assert isinstance(make_asr(), MockASR)
+
+
+def test_the_offline_flag_lands_where_the_settings_already_are(monkeypatch):
+    """A flag with its own parallel defaults is a second set to keep in step."""
+    monkeypatch.delenv("ECHOTURN_LLM_PROVIDER", raising=False)
+    go_offline()
+    assert all(os.environ[name] == "mock" for name in PROVIDER_VARS)
+
+
+def test_the_offline_flag_is_off_unless_it_is_asked_for():
+    assert parse_args(["--mock"]).mock is True
+    assert parse_args([]).mock is False

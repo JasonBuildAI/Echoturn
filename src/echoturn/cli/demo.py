@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import os
 import sys
 import threading
 from collections.abc import Callable, Mapping
@@ -34,6 +35,15 @@ from .audio import Listener, Speaker
 DEFAULT_SYSTEM_PROMPT = env_str(
     "ECHOTURN_DEMO_SYSTEM",
     "You are a helpful voice assistant. Answer in one or two short sentences.",
+)
+
+# The three provider choices, by the names a host would set them under. A flag
+# that took its own route to the same decision would be a second way for
+# providers to be built, and the two would drift the first time one changed.
+PROVIDER_VARS = (
+    "ECHOTURN_LLM_PROVIDER",
+    "ECHOTURN_TTS_PROVIDER",
+    "ECHOTURN_ASR_PROVIDER",
 )
 
 
@@ -282,11 +292,28 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="talk instead of typing: enter to start, enter again to send",
     )
     parser.add_argument(
+        "--mock",
+        action="store_true",
+        help="answer from the offline providers: no key, no network, a beep",
+    )
+    parser.add_argument(
         "--no-play",
         action="store_true",
         help="print the reply without sending its audio to a speaker",
     )
     return parser.parse_args(argv)
+
+
+def go_offline() -> None:
+    """Point every provider at its offline stand-in.
+
+    Somebody who has just installed this should be able to hear a conversation
+    before signing up for anything, and the flag they use for that should land in
+    the same place as the settings they will later edit - not in a parallel set
+    of defaults that only the flag knows about.
+    """
+    for name in PROVIDER_VARS:
+        os.environ[name] = "mock"
 
 
 def _stop_on_enter(source, stop) -> None:
@@ -348,6 +375,8 @@ def main(
     here is the loop, not the wiring it was handed.
     """
     args = parse_args(argv)
+    if args.mock:
+        go_offline()
     if session is None:
         session = Session(
             llm=make_llm(),
