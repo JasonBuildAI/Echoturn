@@ -62,3 +62,15 @@ def test_the_suite_that_runs_is_the_suite_that_ships():
     paths under test are the ones a user gets."""
     assert 'pip install -e ".[dev]"' in TEXT
     assert "python -m pytest" in TEXT
+
+
+def test_the_console_script_is_run_from_a_real_install():
+    """The first command in the README is ``echoturn-demo``.
+
+    Under an editable install the entry point resolves whether or not the wheel
+    would carry it, so the one job that installs the built package is the only
+    place a broken console script shows up before a release does.
+    """
+    assert "pip install ." in TEXT
+    assert "echoturn-demo --mock" in TEXT
+    assert "echoturn-fetch-models --check" in TEXT

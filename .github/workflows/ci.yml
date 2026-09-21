@@ -59,6 +59,33 @@ jobs:
           fi
           node --test "${files[@]}"
 
+  install:
+    name: install
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install the package the way a user does
+        run: python -m pip install .
+      - name: Run a turn with no key, no network and no model files
+        working-directory: /tmp
+        run: |
+          printf 'hello from the offline demo\n' | echoturn-demo --mock --no-play > turn.txt
+          cat turn.txt
+          grep -q "assistant>" turn.txt || {
+            echo "the demo produced no reply; refusing to report success" >&2
+            exit 1
+          }
+      - name: Check that the optional models are reported as missing
+        working-directory: /tmp
+        run: |
+          if echoturn-fetch-models --check; then
+            echo "models appeared from nowhere; the check is not checking" >&2
+            exit 1
+          fi
+
   test:
     name: test (py${{ matrix.python }})
     runs-on: ubuntu-latest
