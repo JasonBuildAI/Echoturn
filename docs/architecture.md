@@ -1,5 +1,7 @@
 # Architecture
 
+Chinese: [architecture.zh-CN.md](architecture.zh-CN.md)
+
 Echoturn is one pipeline with three seams. The seams are the parts a host
 replaces, and everything else is the part that is worth not rewriting.
 
