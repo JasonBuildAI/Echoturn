@@ -12,7 +12,13 @@ import importlib
 import re
 from pathlib import Path
 
-import tomllib
+# tomllib is 3.11 and up. The dev extra carries tomli for the older
+# interpreters, because skipping this module on them would skip the only
+# check that the console scripts and the settings template are real.
+try:
+    import tomllib
+except ModuleNotFoundError:  # Python 3.10
+    import tomli as tomllib
 
 from echoturn.config import DIALS
 
