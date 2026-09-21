@@ -111,6 +111,8 @@ def git_tracked_files(root: Path) -> list[str]:
         ["git", "-C", str(root), "ls-files"],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         check=True,
     )
     return [str(root / line) for line in proc.stdout.splitlines() if line.strip()]
@@ -122,6 +124,8 @@ def git_commit_messages(root: Path) -> str:
         ["git", "-C", str(root), "log", "--format=%B"],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
     )
     return proc.stdout if proc.returncode == 0 else ""
 
@@ -144,9 +148,45 @@ def self_test(terms: Sequence[str]) -> int:
         if scan_files([str(clean)], terms):
             print("self-test FAILED: clean text was flagged", file=sys.stderr)
             return 2
+        # The git path reads a subprocess, and text=True without an explicit
+        # encoding decodes with the locale codec - which on a non-UTF-8 machine
+        # (GBK here) turned a commit message into a UnicodeDecodeError that the
+        # reader thread swallowed, leaving stdout as None and crashing the
+        # guard instead of reporting anything. A commit message is exactly
+        # where a leak would be published, so this path needs a canary too: one
+        # non-ASCII term, in a message that is not ASCII either.
+        term = next((item for item in terms if not item.isascii()), terms[0])
+        repo = root / "repo"
+        repo.mkdir()
+        for command in (
+            ["init", "-q"],
+            [
+                "-c",
+                "user.name=guard",
+                "-c",
+                "user.email=guard@example.invalid",
+                "commit",
+                "-q",
+                "--allow-empty",
+                "-m",
+                f"handoff 这一轮说完了 {term}",
+            ],
+        ):
+            subprocess.run(
+                ["git", "-C", str(repo), *command],
+                capture_output=True,
+                check=True,
+            )
+        if not scan_text(git_commit_messages(repo), terms, "git log"):
+            print(
+                "self-test FAILED: a term in a non-ASCII commit message "
+                "was not detected",
+                file=sys.stderr,
+            )
+            return 2
     print(
         f"privacy guard: self-test ok ({len(terms)} terms, every one detected; "
-        "clean text passes)"
+        "clean text passes; a non-ASCII commit message is read and scanned)"
     )
     return 0
 

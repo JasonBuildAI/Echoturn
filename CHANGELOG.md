@@ -46,3 +46,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   table that points at the positioning guide, and describe the tuning defaults
   as carried over from a running pipeline with the one documented exception,
   rather than as uniformly measured values.
+
+### Fixed
+
+* The publish guard crashed instead of reporting when a commit message was not
+  pure ASCII: `subprocess` output was decoded with the machine's locale codec,
+  which on Windows is not UTF-8. Both repository guards now ask for UTF-8
+  explicitly, and the privacy guard's self-test commits a non-ASCII message
+  that contains a term and requires the guard to find it.

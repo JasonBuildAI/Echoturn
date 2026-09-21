@@ -96,6 +96,8 @@ def git_tracked_files(root: Path) -> list[str]:
         ["git", "-C", str(root), "ls-files"],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         check=True,
     )
     return [str(root / line) for line in proc.stdout.splitlines() if line.strip()]
