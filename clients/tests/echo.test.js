@@ -13,6 +13,15 @@ function tracker(overrides = {}) {
 test("before the speaker has said anything the gate is the absolute floor", () => {
   const echo = tracker();
   assert.equal(echo.gate(), FLOOR);
+  assert.equal(echo.opened, false, "nothing has been heard from the speaker yet");
+});
+
+test("a tracker that has started is open, and a reset closes it again", () => {
+  const echo = tracker();
+  echo.start(1000);
+  assert.equal(echo.opened, true);
+  echo.reset();
+  assert.equal(echo.opened, false);
 });
 
 test("the guard window is open for its length and then shut", () => {

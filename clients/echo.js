@@ -48,6 +48,19 @@ export class EchoTracker {
     return this;
   }
 
+  /**
+   * Whether the speaker has made a sound yet.
+   *
+   * Three states, not two: nothing heard from the speaker, inside the window,
+   * and past it. The first is what tells a client that a reply is still being
+   * written - there is nothing yet to be talking over, and no echo to measure -
+   * and reading it as "inside the window" would make every interruption wait
+   * for a window that had not opened.
+   */
+  get opened() {
+    return this.until > 0;
+  }
+
   /** Whether the guard window is still open. */
   isLearning(now) {
     return now < this.until;
