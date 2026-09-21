@@ -90,6 +90,8 @@ echoturn-fetch-models --check   # 把已装上的加载起来跑一次
 所有设置都是环境变量，**用的时候才读**（不是导入时读一次），所以常驻进程改了配置
 不用重启。断句 / 打断的那些阈值集中在 `echoturn.config.DIALS` 一张表里，
 每个数字是对着什么量出来的，见 [docs/tuning.md](docs/tuning.md)。
+所有变量的名字与默认值都列在 [.env.example](.env.example) 里；它和代码里的一致，
+两边一旦漂移会有测试变红。
 
 | 环境变量 | 默认值 | 作用 |
 |---|---|---|
