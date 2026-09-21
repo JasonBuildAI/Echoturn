@@ -9,6 +9,23 @@ def test_an_unfinished_buffer_is_held_back():
     assert list(iter_sentences(["你好"])) == ["你好"]
 
 
+def test_an_ascii_full_stop_is_not_an_ending():
+    """It reads like one and the docstring calls the ending "a full stop".
+
+    The endings are the ones the model is written to use, so a reply in English
+    is one long piece rather than several sentences. Pinned rather than fixed:
+    the chunk thresholds were measured against this, and widening the set is a
+    decision with a number attached, not a punctuation tidy-up.
+    """
+    assert list(iter_sentences(["One sentence. Another one."])) == [
+        "One sentence. Another one."
+    ]
+
+
+def test_a_question_mark_ends_a_sentence_in_either_script():
+    assert list(iter_sentences(["真的吗？", "Yes?"])) == ["真的吗？", "Yes?"]
+
+
 def test_an_ellipsis_is_not_a_hard_boundary():
     """Otherwise a model that opens with one has a single character spoken alone."""
     out = list(iter_sentences(["……嗯，我想想。"]))

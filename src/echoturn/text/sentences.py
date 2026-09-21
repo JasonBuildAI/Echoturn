@@ -2,10 +2,11 @@
 
 Two boundaries, and the difference between them is the whole point:
 
-* a *hard* boundary (a full stop, an exclamation or a question mark) means the
-  sentence is over, so it can be sent to synthesis immediately;
+* a *hard* boundary (a Chinese full stop, or an exclamation or question mark in
+  either script) means the sentence is over, so it can be sent to synthesis
+  immediately. An ASCII full stop is not one of them;
 * a *soft* boundary (a comma, a colon, an ellipsis) only becomes a cut when the
-  buffer has grown too long, because waiting for the next full stop would mean
+  buffer has grown too long, because waiting for the next ending would mean
   several seconds of silence in the middle of a long sentence.
 
 An ellipsis is deliberately a soft boundary even though it looks like an ending.
@@ -28,6 +29,9 @@ from .speakable import is_speakable
 from .stage import strip_stage_directions
 from .style import TEXT_STYLE, SpeechStyle, get_style
 
+# The endings that cut a sentence. An ASCII full stop is deliberately absent: the
+# set is the one the model is written to use, and docs/tuning.md says what that
+# costs a reply written in English.
 HARD_BOUNDARY = "。！？!?"
 SOFT_BOUNDARY = "，,、；;：…"
 FENCE = "```"

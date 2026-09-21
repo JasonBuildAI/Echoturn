@@ -104,6 +104,20 @@ over a phone.
 The `_MIN` values are the floor under each of those: a chunk shorter than them
 is not worth a request, so the chunker keeps accumulating.
 
+#### What counts as an ending
+
+A sentence is cut at `。`, `！`, `？`, `!` and `?`; a comma, a colon, a semicolon
+or an ellipsis only becomes a cut once the buffer is long enough to be worth
+sending. An ASCII full stop is **not** an ending, which is a real limitation for
+a reply written in English: a paragraph of English prose with full stops in it
+arrives as one long chunk and gets one synthesis request.
+
+This is the behaviour this library was extracted from rather than a decision
+made here, so it is written down instead of quietly changed - the thresholds
+above were measured against it, and widening the set of endings would move every
+number on this page. `tests/test_text_sentences.py` pins it in both directions:
+one test for the endings that cut, one for the one that does not.
+
 ### Synthesis concurrency
 
 **32 in flight, for the whole process.** It is sized for the provider's
