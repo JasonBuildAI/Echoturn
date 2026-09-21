@@ -1,5 +1,7 @@
 # Events
 
+Chinese: [events.zh-CN.md](events.zh-CN.md)
+
 One turn is a stream of plain dictionaries. It is a stream rather than a
 callback API because the consumer is almost always something that has to send
 them somewhere - an SSE response, a websocket, a queue - and because a stream is
