@@ -53,7 +53,7 @@ Echoturn 把这部分单独抽出来做成一个小库，你继续用自己的 A
 ```bash
 pip install -e ".[web]"
 python -m echoturn.cli.demo --mock          # 终端里打字，听 mock 语音
-python -m examples.minimal_call.app         # 浏览器里直接跟它说话
+python examples/minimal_call/app.py         # 浏览器里打字跟它说话（mock 供应商）
 ```
 
 ## 安装
