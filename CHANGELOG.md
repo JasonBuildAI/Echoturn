@@ -42,6 +42,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+* A failing suite on CI names the tests that failed as annotations on the run,
+  because the raw log is served behind a GitHub sign-in and a bare red cross is
+  not a report.
 * Both READMEs open with a language switch, list the library's advantages in a
   table that points at the positioning guide, and describe the tuning defaults
   as carried over from a running pipeline with the one documented exception,

@@ -46,6 +46,9 @@ The suite must pass **without network access** and without any API key. That is
 not a preference: CI has neither, so a test that reaches for a socket fails
 there - the fix is to fake the provider, not to mark the test and move on.
 
+When CI goes red, the failing test names are published as annotations on the
+run, which anyone can read; the raw log is behind a GitHub sign-in.
+
 ## Commit guidelines
 
 We use [Conventional Commits](https://www.conventionalcommits.org/):

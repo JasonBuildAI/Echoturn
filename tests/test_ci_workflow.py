@@ -74,3 +74,16 @@ def test_the_console_script_is_run_from_a_real_install():
     assert "pip install ." in TEXT
     assert "echoturn-demo --mock" in TEXT
     assert "echoturn-fetch-models --check" in TEXT
+
+
+def test_a_failed_suite_names_the_tests_where_anyone_can_read_it():
+    """A red build has to be reportable without a GitHub account.
+
+    The raw log is served behind a sign-in, so "the suite failed" reached the
+    outside as a bare red cross and nothing else. Annotations are readable by
+    anyone. The other half of the same rule is the exit code: without a pipefail
+    the pipeline reports what ``tee`` did, and a failed suite would be green.
+    """
+    assert "set -o pipefail" in TEXT
+    assert "if: failure()" in TEXT
+    assert "::error title=pytest::" in TEXT
