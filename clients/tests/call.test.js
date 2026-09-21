@@ -246,6 +246,25 @@ test("a service that fails outright is reported rather than swallowed", async ()
   assert.match(notices[0], /500/);
 });
 
+test("a host that wants to stop the call on a failure is told first", async () => {
+  const failures = [];
+  const order = [];
+  const { call, device } = build({
+    transcripts: [{ text: "hi" }],
+    turnOk: false,
+    onError: (err) => {
+      order.push("error");
+      failures.push(err);
+    },
+    onNotice: () => order.push("notice"),
+  });
+  await call.start();
+  await utter({ device });
+  assert.equal(failures.length, 1);
+  assert.match(failures[0].message, /500/);
+  assert.deepEqual(order, ["error", "notice"]);
+});
+
 test("a recording with no words in it says so", async () => {
   const { call, notices, device } = build({ transcripts: [{ text: "" }] });
   await call.start();

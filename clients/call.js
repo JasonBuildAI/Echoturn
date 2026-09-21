@@ -555,7 +555,12 @@ export class Call {
   failed(err) {
     this.busy = false;
     this.controller = null;
-    this.notice((err && err.message) || String(err));
+    const message = (err && err.message) || String(err);
+    // Both, and the order matters: a host that wants to stop the call on a
+    // failure has to hear about it before the notice goes on screen, and a host
+    // that only handles notices still learns that something went wrong.
+    if (this.onError) this.onError(err);
+    this.notice(message);
     this.emitState();
   }
 
