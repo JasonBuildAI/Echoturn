@@ -26,3 +26,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   out of the wheel, and `--check` to load what is installed and run it once.
 * A settings template (`.env.example`) checked against the code, a `py.typed`
   marker, and console scripts whose targets are checked before release.
+* Guides under `docs/`: the architecture and its threads, the event contract,
+  writing a provider, turn-taking and barge-in, every knob with what its default
+  was measured against, the browser client, and how to read the benchmark.
+* `bench/latency.py`, which puts a number on the pipeline's own share of a
+  turn's latency and on what flushing early is worth at a given model pace.
+* Two repository checks: a publish guard that fails on an identifier that must
+  not leave the machine, and a warning for CJK text outside the Chinese README
+  that deliberately does not fail the build.
