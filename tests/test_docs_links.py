@@ -18,6 +18,9 @@ ROOT = Path(__file__).resolve().parent.parent
 MARKDOWN = [ROOT / "README.md", ROOT / "README.zh-CN.md"]
 MARKDOWN += sorted((ROOT / "docs").glob("*.md"))
 
+# The naming convention for a translated page, from the contributing guide.
+TRANSLATED = ".zh-CN.md"
+
 # A relative link: not http(s), not a mail link, not a bare `#anchor`.
 LINK = re.compile(r"\]\((?!https?:|mailto:|#)([^)#\s]+)")
 
@@ -33,6 +36,31 @@ def test_there_is_something_to_check():
     """A guard that found no documents would pass by looking at nothing."""
     assert len(MARKDOWN) > 2
     assert any(links(path) for path in MARKDOWN)
+
+
+def test_every_guide_exists_in_both_languages():
+    """A guide is in both languages or in neither - never in one.
+
+    A pair that drifts apart is worse than a single page: it is two answers to
+    the same question, and the reader has no way to tell which one the code
+    follows. The two READMEs are held to the same rule at the root.
+    """
+    for folder in (ROOT / "docs", ROOT):
+        english = {
+            path.name
+            for path in folder.glob("*.md")
+            if not path.name.endswith(TRANSLATED)
+        }
+        translated = {
+            path.name[: -len(TRANSLATED)] + ".md"
+            for path in folder.glob("*" + TRANSLATED)
+        }
+        if folder is ROOT:
+            # The root has other documents; only the README is a pair.
+            english &= {"README.md"}
+        assert english, f"no English pages in {folder}"
+        assert translated, f"no translated pages in {folder}"
+        assert english == translated, f"{folder}: {english ^ translated}"
 
 
 def test_every_relative_link_points_at_a_file_that_exists():
