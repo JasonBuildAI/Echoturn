@@ -36,3 +36,24 @@ class ProviderError(EchoturnError):
         super().__init__(message)
         self.message = message
         self.detail = detail or message
+
+
+# What a person sees when something broke that we did not plan for. Any wording
+# is fine as long as it is dull: this string is rendered in a conversation, and
+# the alternative - the exception's own text - routinely contains host paths,
+# provider payloads and internal host names.
+UNEXPECTED_MESSAGE = "something went wrong on our side; please try again"
+
+
+def safe_message(exc: BaseException) -> str:
+    """A line fit to show to a person, for any failure.
+
+    Errors this package raises carry their own user-facing wording, so they are
+    passed through. Anything else is replaced: an unexpected exception is exactly
+    the kind whose text nobody has vetted.
+    """
+    if isinstance(exc, ProviderError):
+        return exc.message
+    if isinstance(exc, MissingDependencyError):
+        return str(exc)
+    return UNEXPECTED_MESSAGE

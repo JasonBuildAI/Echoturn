@@ -40,7 +40,9 @@ web = ["fastapi>=0.110", "uvicorn>=0.29"]
 cli = ["sounddevice>=0.4"]
 # numpy is a test dependency as well: the pitch and speed tests exercise the real
 # transforms, and a skipped transform test proves nothing about the transform.
-dev = ["pytest>=8", "pytest-cov", "ruff>=0.5", "numpy>=1.24"]
+# starlette is here for the same reason: the SSE bridge is the one part of the
+# package whose behaviour only shows up under a real event loop.
+dev = ["pytest>=8", "pytest-cov", "ruff>=0.5", "numpy>=1.24", "starlette>=0.37"]
 
 [project.urls]
 Homepage = "https://github.com/JasonBuildAI/Echoturn"
