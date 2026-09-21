@@ -50,6 +50,10 @@ def test_three_endings_are_terminal_and_nothing_else_is():
         assert (name in events.TERMINAL) == (name in ("aborted", "done", "error"))
 
 
+def test_the_reason_this_package_emits_is_named_once():
+    assert events.aborted(events.SUPERSEDED)["reason"] == "superseded"
+
+
 def test_encoding_is_one_sse_frame():
     assert events.encode(events.sentence(0, "hi")) == (
         'data: {"type": "sentence", "i": 0, "text": "hi"}\n\n'

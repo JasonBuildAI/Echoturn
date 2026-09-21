@@ -143,6 +143,13 @@ DIALS: tuple[Dial, ...] = (
     Dial(ENV_PREFIX + "TTS_CHUNK_MIN", "tts_chunk_min", "int", 16),
     Dial(ENV_PREFIX + "TTS_FIRST_CALL_CHARS", "tts_first_call_chars", "int", 5),
     Dial(ENV_PREFIX + "TTS_FIRST_CALL_MIN", "tts_first_call_min", "int", 4),
+    # How many synthesis requests may be in flight for the whole process. It is
+    # sized for the provider's tolerance of concurrency, not for the number of
+    # people talking: a pool per turn would put fifteen hundred threads on the
+    # machine at five hundred simultaneous calls, and the time everybody spends
+    # waiting for a free core is time they spend not hearing anything. Read when
+    # the pool is built, which is once per process.
+    Dial(ENV_PREFIX + "TTS_POOL_SIZE", "tts_pool_size", "int", 32),
     # How long a quiet gap reopens the context given to the model. Within it, the
     # conversation continues; past it, the model starts fresh and the tokens are
     # saved. It affects nothing else: history, transcripts and everything stored

@@ -44,6 +44,7 @@ from typing import Any
 __all__ = [
     "AUDIO_MIME",
     "EVENT_TYPES",
+    "SUPERSEDED",
     "TERMINAL",
     "aborted",
     "ack",
@@ -101,7 +102,12 @@ def sink(audio_sink: str = "browser", notice: str = "") -> dict:
 
 
 def aborted(reason: str) -> dict:
-    """The turn was stopped. See :data:`REASONS` for the ones this package uses."""
+    """The turn was stopped.
+
+    ``reason`` is a short word for the client to choose its wording with. The one
+    this package emits is :data:`SUPERSEDED`; a host that cancels for its own
+    reasons passes its own word, and there is no vocabulary to keep in step.
+    """
     return {"type": "aborted", "reason": str(reason)}
 
 
@@ -137,9 +143,10 @@ def error(message: str) -> dict:
     return {"type": "error", "error": str(message)}
 
 
-# Why a turn was stopped. Both are the same thing to act on and different to
-# read: "a newer turn replaced this one" and "the listener went away".
-REASONS = ("superseded", "client_gone")
+# Why this package stops a turn: something newer replaced it. A client that
+# disconnected causes the same thing, and the caller cannot tell the two apart -
+# both are "this turn is no longer wanted".
+SUPERSEDED = "superseded"
 
 
 def encode(event: Mapping[str, Any]) -> str:
