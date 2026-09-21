@@ -11,9 +11,17 @@ from __future__ import annotations
 
 from array import array
 
+from ..config import dials
+
 # What to say when the library is not installed. Named as the extra rather than
 # as the package, because the extra is the thing the reader has to type.
 MISSING_DEVICE = "no audio device: pip install 'echoturn[cli]'"
+
+# How much audio is read at a time. Only the granularity at which the caller's
+# stop signal is noticed, since a blocking read cannot be interrupted: a hundred
+# milliseconds is short enough that the end of a sentence is not clipped in any
+# way somebody would notice.
+BLOCK_MS = 100.0
 
 
 def sounddevice():
@@ -78,3 +86,78 @@ class Speaker:
             return False
         self.error = ""
         return True
+
+
+class Listener:
+    """Records from the default input until the caller says to stop.
+
+    It stops when the *caller* says so, not when the audio goes quiet. A terminal
+    has no way to know that a sentence has ended, and a second, worse
+    endpointing rule living here would be a second answer to a question this
+    package already answers - in the browser client, where it is tested against
+    the thresholds in the dial table. What this class adds is the device, and
+    nothing above it.
+    """
+
+    def __init__(
+        self,
+        *,
+        module=None,
+        device=None,
+        loader=sounddevice,
+        rate: int | None = None,
+        block_ms: float = BLOCK_MS,
+    ) -> None:
+        self._module = module
+        self._loader = loader
+        self.device = device
+        # The rate the recogniser is configured for, rather than one written
+        # here: recording at a rate nothing downstream expects is a transcript
+        # of the wrong words, and the rate is already a setting.
+        self.rate = int(rate or dials()["sample_rate"])
+        self.block_ms = float(block_ms)
+        self.error = ""
+
+    def library(self):
+        """The library, loaded once."""
+        if self._module is None:
+            self._module = self._loader()
+        return self._module
+
+    @property
+    def ready(self) -> bool:
+        """Whether anything can be recorded at all."""
+        return self.library() is not None
+
+    @property
+    def block(self) -> int:
+        """Samples in one read."""
+        return max(1, int(self.rate * self.block_ms / 1000.0))
+
+    def record(self, stop) -> bytes:
+        """Record 16-bit mono PCM until ``stop`` is set; empty when it cannot.
+
+        The reading thread is the caller's problem, which is why ``stop`` is an
+        event rather than a duration: a terminal reads a key press on the main
+        thread while this blocks on the sound card, and the two have to be able
+        to run at once.
+        """
+        module = self.library()
+        if module is None:
+            self.error = MISSING_DEVICE
+            return b""
+        chunks = bytearray()
+        try:
+            with module.RawInputStream(
+                samplerate=self.rate,
+                channels=1,
+                dtype="int16",
+                blocksize=self.block,
+                device=self.device,
+            ) as stream:
+                while not stop.is_set():
+                    data, _overflowed = stream.read(self.block)
+                    chunks += bytes(data)
+        except Exception as exc:  # noqa: BLE001 - a device failure is not a crash
+            self.error = f"{type(exc).__name__}: {exc}"
+        return bytes(chunks)
