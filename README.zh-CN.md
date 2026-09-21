@@ -33,7 +33,7 @@ Echoturn 把这部分单独抽出来做成一个小库，你继续用自己的 A
    POST /api/transcribe ──► ASR ──► 文本
                                      │
                                      ▼
-   POST /api/chat/stream ──► 系统提示词 + 上下文窗口 ──► LLM（流式）
+   POST /api/turn ──► 系统提示词 + 上下文窗口 ──► LLM（流式）
                                      │
                                      ├──► sentence 事件 ──► 字幕
                                      │
