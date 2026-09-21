@@ -1,5 +1,7 @@
 # The browser client
 
+Chinese: [client.zh-CN.md](client.zh-CN.md)
+
 `clients/` is a set of ES modules with no build step. A page imports them
 directly:
 
