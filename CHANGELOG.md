@@ -18,4 +18,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   adapters.
 * Turn detection: energy and Silero VAD, mel front-end and a "sentence finished"
   model, both optional.
-* Browser client and a minimal call demo.
+* Browser client and a minimal call demo: an AudioWorklet capture path, a
+  silence cursor, a barge-in gate, an echo window and a gap-free playback queue.
+* Terminal demo, installed as `echoturn-demo`: type at it, or talk to it with
+  `--mic`, with `--mock` for a conversation that needs no key and no network.
+* `echoturn-fetch-models` to install the optional endpointing models, which stay
+  out of the wheel, and `--check` to load what is installed and run it once.
+* A settings template (`.env.example`) checked against the code, a `py.typed`
+  marker, and console scripts whose targets are checked before release.
