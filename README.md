@@ -59,9 +59,15 @@ The whole pipeline runs with no API keys, no network and no model downloads:
 
 ```bash
 pip install -e ".[web]"
-python -m echoturn.cli.demo --mock          # terminal: text in, mock speech out
+echoturn-demo --mock                        # terminal: type in, beep out
+echoturn-demo --mock --mic                  # talk instead (needs echoturn[cli])
 python examples/minimal_call/app.py         # browser: type to it (mock providers)
 ```
+
+`echoturn-demo` is the console script the package installs; `python -m
+echoturn.cli.demo` is the same program, for when you would rather not rely on
+`PATH`. Typing sends on enter; in `--mic` mode enter starts a recording and
+enter again sends what was said.
 
 With real providers, point a compatible endpoint at it:
 
@@ -154,6 +160,7 @@ environment at call time. The defaults are measured values, not guesses — see
 
 | document | what it covers |
 |---|---|
+| [docs/README.md](docs/README.md) | the index: what to read, and in what order |
 | [docs/architecture.md](docs/architecture.md) | modules, threading model, data flow |
 | [docs/events.md](docs/events.md) | the wire contract of every event |
 | [docs/providers.md](docs/providers.md) | writing an ASR/TTS/LLM adapter |
