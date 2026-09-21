@@ -48,7 +48,14 @@ jobs:
         run: |
           for file in clients/*.js; do node --check "$file"; done
       - name: Run the client suite
-        run: node --test clients/tests/*.test.js
+        run: |
+          shopt -s nullglob
+          files=(clients/tests/*.test.js)
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "no client tests matched; refusing to report success" >&2
+            exit 1
+          fi
+          node --test "${files[@]}"
 
   test:
     name: test (py${{ matrix.python }})
