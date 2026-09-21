@@ -1,0 +1,29 @@
+name: Feature request
+description: Propose a change in behaviour or a new adapter.
+title: "[feat] "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve
+      description: Describe the situation, not the implementation.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you would like to happen
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you considered
+  - type: checkboxes
+    id: interfaces
+    attributes:
+      label: Interface impact
+      options:
+        - label: This changes an event shape or a protocol method
+        - label: This changes a default value in the knob table
