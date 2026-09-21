@@ -40,8 +40,8 @@ def test_repository_is_clean():
 def test_canary_file_is_flagged(tmp_path):
     module = _load_guard()
     leak = tmp_path / "leak.md"
-    leak.write_text("harmless prefix %s harmless suffix\n" % module.forbidden_terms()[0],
-                    encoding="utf-8")
+    term = module.forbidden_terms()[0]
+    leak.write_text(f"harmless prefix {term} harmless suffix\n", encoding="utf-8")
     proc = _run("--root", str(tmp_path), "--no-git")
     assert proc.returncode == 1, proc.stdout + proc.stderr
     assert "term #1" in proc.stderr
@@ -65,8 +65,11 @@ def test_terms_are_not_stored_in_plaintext():
         assert term not in source
 
 
-def test_every_term_is_non_trivial():
+def test_every_term_is_specific_enough():
+    """Short entries would flag unrelated words; single names are 3 characters."""
     module = _load_guard()
     terms = module.forbidden_terms()
     assert len(terms) >= 5
-    assert all(len(term) >= 5 for term in terms)
+    for term in terms:
+        assert len(term) >= 3, term
+        assert len(term) >= 5 or not term.isascii(), term

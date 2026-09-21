@@ -9,10 +9,10 @@ while still letting the scanner scan itself.
 
 Usage:
 
-    python scripts/check_privacy.py                 # scan tracked files and commits
-    python scripts/check_privacy.py --no-git        # walk the tree instead of asking git
-    python scripts/check_privacy.py --self-test     # prove the guard can fail
-    python scripts/check_privacy.py --show          # reveal what matched (local only)
+    python scripts/check_privacy.py                  # tracked files and commits
+    python scripts/check_privacy.py --no-git         # walk the tree instead
+    python scripts/check_privacy.py --self-test      # prove the guard can fail
+    python scripts/check_privacy.py --show           # reveal it (local only)
 
 Exit codes: 0 clean, 1 hit, 2 the guard could not run at all.
 """
@@ -23,10 +23,13 @@ import base64
 import subprocess
 import sys
 import tempfile
+from collections.abc import Sequence
 from pathlib import Path
-from typing import List, Sequence, Tuple
 
-# Decoded at runtime by forbidden_terms(); see the docstring for why.
+# A report is (where it was found, line number, which term) - never the term.
+Hit = tuple[str, int, int]
+
+# Decoded at runtime by forbidden_terms(); see the module docstring.
 FORBIDDEN_B64 = (
     "bnVtYmVyaHVtYW4=",
     "bGlueWl4aW4=",
@@ -57,21 +60,19 @@ SKIP_DIRS = frozenset(
 )
 
 
-def forbidden_terms() -> List[str]:
-    """The decoded list. Never printed by default - only file and line numbers are."""
+def forbidden_terms() -> list[str]:
+    """The decoded list. Only positions are ever printed; see Hit."""
     return [base64.b64decode(item).decode("utf-8") for item in FORBIDDEN_B64]
 
 
 def _label(index: int) -> str:
-    """A term is referred to by position, so a report cannot leak it into logs."""
-    return "term #%d" % index
+    """Terms are referred to by position so a report cannot leak one into logs."""
+    return f"term #{index}"
 
 
-def scan_text(
-    text: str, terms: Sequence[str], where: str
-) -> List[Tuple[str, int, int]]:
-    """Return (where, line number, term index) for every line containing a term."""
-    hits: List[Tuple[str, int, int]] = []
+def scan_text(text: str, terms: Sequence[str], where: str) -> list[Hit]:
+    """Find every line that contains a term, for every term."""
+    hits: list[Hit] = []
     lowered = text.lower()
     for index, term in enumerate(terms, 1):
         needle = term.lower()
@@ -83,8 +84,8 @@ def scan_text(
     return hits
 
 
-def scan_files(paths: Sequence[str], terms: Sequence[str]) -> List[Tuple[str, int, int]]:
-    hits: List[Tuple[str, int, int]] = []
+def scan_files(paths: Sequence[str], terms: Sequence[str]) -> list[Hit]:
+    hits: list[Hit] = []
     for path in paths:
         try:
             raw = Path(path).read_bytes()
@@ -94,19 +95,18 @@ def scan_files(paths: Sequence[str], terms: Sequence[str]) -> List[Tuple[str, in
     return hits
 
 
-def walk_files(root: Path) -> List[str]:
-    out: List[str] = []
+def walk_files(root: Path) -> list[str]:
+    found: list[str] = []
     for path in sorted(root.rglob("*")):
         if not path.is_file():
             continue
-        parts = path.relative_to(root).parts
-        if any(part in SKIP_DIRS for part in parts):
+        if any(part in SKIP_DIRS for part in path.relative_to(root).parts):
             continue
-        out.append(str(path))
-    return out
+        found.append(str(path))
+    return found
 
 
-def git_tracked_files(root: Path) -> List[str]:
+def git_tracked_files(root: Path) -> list[str]:
     proc = subprocess.run(
         ["git", "-C", str(root), "ls-files"],
         capture_output=True,
@@ -117,7 +117,7 @@ def git_tracked_files(root: Path) -> List[str]:
 
 
 def git_commit_messages(root: Path) -> str:
-    """Commit messages are published too - a leak there is just as permanent."""
+    """Commit messages are published too: a leak there is just as permanent."""
     proc = subprocess.run(
         ["git", "-C", str(root), "log", "--format=%B"],
         capture_output=True,
@@ -127,17 +127,15 @@ def git_commit_messages(root: Path) -> str:
 
 
 def self_test(terms: Sequence[str]) -> int:
-    """Prove the guard fails: one canary per term, plus a clean file it must ignore."""
+    """Prove the guard fails: one canary per term, plus a clean file it ignores."""
     with tempfile.TemporaryDirectory(prefix="echoturn-privacy-") as tmp:
         root = Path(tmp)
         for index, term in enumerate(terms, 1):
-            canary = root / ("canary_%d.txt" % index)
-            canary.write_text(
-                "harmless prefix %s harmless suffix\n" % term, encoding="utf-8"
-            )
+            canary = root / f"canary_{index}.txt"
+            canary.write_text(f"harmless prefix {term} harmless suffix\n", "utf-8")
             if not scan_files([str(canary)], terms):
                 print(
-                    "self-test FAILED: %s was not detected" % _label(index),
+                    f"self-test FAILED: {_label(index)} not detected",
                     file=sys.stderr,
                 )
                 return 2
@@ -147,8 +145,8 @@ def self_test(terms: Sequence[str]) -> int:
             print("self-test FAILED: clean text was flagged", file=sys.stderr)
             return 2
     print(
-        "privacy guard: self-test ok (%d terms, every one detected; clean text passes)"
-        % len(terms)
+        f"privacy guard: self-test ok ({len(terms)} terms, every one detected; "
+        "clean text passes)"
     )
     return 0
 
@@ -165,34 +163,37 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     terms = forbidden_terms()
     if not terms:
-        print("privacy guard: empty term list - refusing to report success", file=sys.stderr)
+        print("privacy guard: empty term list, refusing to report success",
+              file=sys.stderr)
         return 2
     if args.self_test:
         return self_test(terms)
 
     root = Path(args.root).resolve()
-    hits: List[Tuple[str, int, int]] = []
+    hits: list[Hit] = []
     if args.no_git:
         hits.extend(scan_files(walk_files(root), terms))
     else:
         try:
             hits.extend(scan_files(git_tracked_files(root), terms))
         except (subprocess.CalledProcessError, FileNotFoundError) as exc:
-            print("privacy guard: cannot list tracked files (%s); use --no-git" % exc,
-                  file=sys.stderr)
+            print(
+                f"privacy guard: cannot list tracked files ({exc}); use --no-git",
+                file=sys.stderr,
+            )
             return 2
         hits.extend(scan_text(git_commit_messages(root), terms, "git log"))
 
     if not hits:
-        print("privacy guard: clean (%d terms checked)" % len(terms))
+        print(f"privacy guard: clean ({len(terms)} terms checked)")
         return 0
 
-    print("privacy guard: %d forbidden identifier(s) found" % len(hits), file=sys.stderr)
+    print(f"privacy guard: {len(hits)} forbidden identifier(s) found", file=sys.stderr)
     for where, lineno, index in hits:
-        print("  %s:%d: %s" % (where, lineno, _label(index)), file=sys.stderr)
+        print(f"  {where}:{lineno}: {_label(index)}", file=sys.stderr)
     if args.show:
         for _where, _lineno, index in hits:
-            print("  %s = %r" % (_label(index), terms[index - 1]), file=sys.stderr)
+            print(f"  {_label(index)} = {terms[index - 1]!r}", file=sys.stderr)
     print(
         "Remove these before publishing. Run with --show to see the term locally.",
         file=sys.stderr,
