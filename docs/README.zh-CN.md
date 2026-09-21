@@ -6,12 +6,16 @@
 | 文档 | 它回答什么 |
 |---|---|
 | [architecture.zh-CN.md](architecture.zh-CN.md) | 接缝在哪、哪条线程在跑什么、一轮怎么被取消 |
+| [positioning.zh-CN.md](positioning.zh-CN.md) | 这个库强在哪、它不做什么，以及该用哪个别的项目 |
 | [events.zh-CN.md](events.zh-CN.md) | 七个事件、各自的字段，以及它们的顺序里哪些是有保证的 |
 | [providers.zh-CN.md](providers.zh-CN.md) | 三个协议，以及怎么接自己的 |
 | [turn-taking.zh-CN.md](turn-taking.zh-CN.md) | 断句、打断、回声处理 |
 | [tuning.zh-CN.md](tuning.zh-CN.md) | 每一个阈值、它的默认值，以及它是对着什么量出来的 |
 | [client.zh-CN.md](client.zh-CN.md) | 浏览器客户端，逐个模块 |
 | [benchmarks.zh-CN.md](benchmarks.zh-CN.md) | 延迟报告量的是什么，以及怎么读 |
+
+还在决定要不要用它？先读 [positioning.zh-CN.md](positioning.zh-CN.md) ——
+它会直接点出「这种情况下该用更大那一套」的场合。
 
 刚上手？先读 [architecture.zh-CN.md](architecture.zh-CN.md)，再读
 [turn-taking.zh-CN.md](turn-taking.zh-CN.md) —— 有意思的决定都在第二份里，而它们正是被
