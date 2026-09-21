@@ -1,5 +1,7 @@
 # Benchmarks
 
+Chinese: [benchmarks.zh-CN.md](benchmarks.zh-CN.md)
+
 One script, one question: **how much of a turn's latency is this library's
 fault?** It is [`bench/latency.py`](../bench/latency.py), and its module
 docstring is the authority on what it does and does not measure. This page is
