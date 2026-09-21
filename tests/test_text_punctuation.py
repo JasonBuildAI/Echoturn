@@ -59,4 +59,4 @@ def test_emoji_and_kaomoji_removal_is_opt_in():
 
 
 def test_removing_decorations_does_not_leave_a_dangling_comma():
-    assert strip_decorations("好耶，^_^", drop_emoji=True) == "好耶"
+    assert strip_decorations("好耶，^_^。", drop_emoji=True) == "好耶。"

@@ -24,10 +24,11 @@ _KAOMOJI = re.compile(
     r"|[oO0][rR][zZ]"                      # orz
     r"|[Oo][Tt][Zz]"                       # OTZ
 )
-# A comma is dangling when a full stop follows it, and also when nothing follows
-# it at all - which is what removing a decoration at the end of a sentence
-# leaves behind.
-_DANGLING_COMMA = re.compile(r"[，,](?=[。！？，、；;.!?])|[，,]\s*$")
+# A comma left dangling in front of another punctuation mark, which is what
+# removing something in the middle of a sentence leaves behind. A comma at the
+# very end of the text is *not* touched: a sentence cut at a soft boundary ends
+# with one, and eating it would mean the split no longer reconstructs the text.
+_DANGLING_COMMA = re.compile(r"[，,](?=[。！？，、；;.!?])")
 
 
 def cap_ellipsis(text: str, budget: int = 1) -> str:
