@@ -95,3 +95,22 @@ class SilentTTS:
         if chunk_cb is None:
             return b""
         return None
+
+
+class FakeASR:
+    """A recogniser that answers with what it was told, and records the ask."""
+
+    def __init__(self, text: str = "hello") -> None:
+        self.text = text
+        self.calls: list[dict] = []
+
+    def transcribe(self, audio, *, sample_rate, fmt, lang):
+        self.calls.append(
+            {
+                "bytes": len(audio),
+                "sample_rate": sample_rate,
+                "fmt": fmt,
+                "lang": lang,
+            }
+        )
+        return self.text

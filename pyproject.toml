@@ -42,7 +42,14 @@ cli = ["sounddevice>=0.4"]
 # transforms, and a skipped transform test proves nothing about the transform.
 # starlette is here for the same reason: the SSE bridge is the one part of the
 # package whose behaviour only shows up under a real event loop.
-dev = ["pytest>=8", "pytest-cov", "ruff>=0.5", "numpy>=1.24", "starlette>=0.37"]
+dev = [
+  "pytest>=8",
+  "pytest-cov",
+  "ruff>=0.5",
+  "numpy>=1.24",
+  "starlette>=0.37",
+  "fastapi>=0.110",
+]
 
 [project.urls]
 Homepage = "https://github.com/JasonBuildAI/Echoturn"

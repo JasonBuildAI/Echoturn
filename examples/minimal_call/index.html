@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Echoturn - minimal call</title>
+<style>
+  :root { color-scheme: light dark; }
+  body {
+    font: 16px/1.5 system-ui, sans-serif;
+    margin: 0 auto; max-width: 40rem; padding: 1.5rem;
+    display: flex; flex-direction: column; gap: 1rem; height: 100vh;
+    box-sizing: border-box;
+  }
+  h1 { font-size: 1.1rem; margin: 0; font-weight: 600; }
+  #log { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: .5rem; }
+  .said, .answered, .broke {
+    padding: .5rem .75rem; border-radius: .75rem; max-width: 85%;
+    white-space: pre-wrap; word-break: break-word;
+  }
+  .said { align-self: flex-end; background: #2b6cb0; color: #fff; }
+  .answered { align-self: flex-start; background: #00000010; }
+  .broke { align-self: center; font-size: .85rem; opacity: .7; }
+  form { display: flex; gap: .5rem; }
+  textarea { flex: 1; font: inherit; padding: .5rem; resize: none; }
+  button { font: inherit; padding: .5rem 1rem; }
+  label { font-size: .85rem; display: flex; gap: .4rem; align-items: center; }
+</style>
+</head>
+<body>
+<h1>Echoturn - minimal call</h1>
+<div id="log"></div>
+<label><input type="checkbox" id="speak" checked> answer with audio</label>
+<form id="composer">
+  <textarea id="text" rows="2" placeholder="Say something, then press enter"></textarea>
+  <button type="submit">Send</button>
+</form>
+
+<script type="module">
+// The order audio must be played in is the order the chunks were written, which
+// is what the idx field is for: synthesis finishes out of order, so chunks that
+// arrive before an earlier one has to wait for it.
+const log = document.getElementById("log");
+const form = document.getElementById("composer");
+const speaking = document.getElementById("speak");
+const text = document.getElementById("text");
+const session = "demo";
+
+let audio = new AudioContext();
+let next = 0;
+const waiting = new Map();
+let playing = false;
+
+function line(className, content = "") {
+  const element = document.createElement("div");
+  element.className = className;
+  element.textContent = content;
+  log.appendChild(element);
+  log.scrollTop = log.scrollHeight;
+  return element;
+}
+
+function queue(idx, data) {
+  waiting.set(idx, data);
+  drain();
+}
+
+async function drain() {
+  if (playing) return;
+  playing = true;
+  while (waiting.has(next)) {
+    const data = waiting.get(next);
+    waiting.delete(next);
+    next += 1;
+    const bytes = Uint8Array.from(atob(data), (c) => c.charCodeAt(0));
+    const clip = await audio.decodeAudioData(bytes.buffer);
+    const source = audio.createBufferSource();
+    source.buffer = clip;
+    source.connect(audio.destination);
+    await new Promise((done) => { source.onended = done; source.start(); });
+  }
+  playing = false;
+}
+
+function handle(event, bubble) {
+  if (event.type === "sentence") {
+    // The subtitle arrives before the audio does, so the words are on screen
+    // while the voice is still being made.
+    bubble.textContent += (bubble.textContent ? " " : "") + event.text;
+  } else if (event.type === "audio") {
+    queue(event.idx, event.data);
+  } else if (event.type === "done") {
+    bubble.textContent = event.reply || bubble.textContent;
+  } else if (event.type === "error") {
+    line("broke", event.error);
+  }
+}
+
+form.addEventListener("submit", async (submit) => {
+  submit.preventDefault();
+  const message = text.value.trim();
+  if (!message) return;
+  text.value = "";
+  line("said", message);
+  next = 0;
+  waiting.clear();
+  const bubble = speaking.checked ? line("answered") : null;
+  // An AudioContext starts suspended until a gesture; this is that gesture.
+  if (audio.state === "suspended") await audio.resume();
+  const response = await fetch("/api/turn", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      text: message, session, speak: speaking.checked, input_kind: "text",
+    }),
+  });
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    let edge;
+    while ((edge = buffer.indexOf("\n\n")) >= 0) {
+      const frame = buffer.slice(0, edge);
+      buffer = buffer.slice(edge + 2);
+      if (frame.startsWith("data: ")) handle(JSON.parse(frame.slice(6)), bubble);
+    }
+  }
+});
+</script>
+</body>
+</html>

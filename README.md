@@ -40,7 +40,7 @@ Everything above is provider-agnostic and runs offline against mock providers.
    POST /api/transcribe ──► ASR ──► text
                                      │
                                      ▼
-   POST /api/chat/stream ──► system prompt + window ──► LLM (streaming)
+      POST /api/turn ──► system prompt + window ──► LLM (streaming)
                                      │
                                      ├──► sentence events ──► subtitles
                                      │
@@ -60,7 +60,7 @@ The whole pipeline runs with no API keys, no network and no model downloads:
 ```bash
 pip install -e ".[web]"
 python -m echoturn.cli.demo --mock          # terminal: text in, mock speech out
-python -m examples.minimal_call.app         # browser: talk to it (mock providers)
+python examples/minimal_call/app.py         # browser: type to it (mock providers)
 ```
 
 With real providers, point a compatible endpoint at it:
@@ -69,7 +69,7 @@ With real providers, point a compatible endpoint at it:
 export ECHOTURN_LLM_MODEL=gpt-4o-mini
 export ECHOTURN_TTS_MODEL=tts-1
 export OPENAI_API_KEY=...
-python -m examples.minimal_call.app
+python examples/minimal_call/app.py
 ```
 
 ## Install
