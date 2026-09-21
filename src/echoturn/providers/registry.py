@@ -22,12 +22,36 @@ from typing import Any
 from ..config import env_str
 from .mock import MockASR, MockLLM, MockTTS
 
+
+def _openai_tts():
+    # Imported inside the factory: the adapter pulls in an HTTP client, and a host
+    # that only ever uses the offline providers should not pay for it.
+    from .openai_compatible import OpenAICompatibleTTS
+
+    return OpenAICompatibleTTS()
+
+
+def _openai_asr():
+    from .openai_compatible import OpenAICompatibleASR
+
+    return OpenAICompatibleASR()
+
+
+def _openai_llm():
+    from .openai_compatible import OpenAICompatibleLLM
+
+    return OpenAICompatibleLLM()
+
+
 # Provider names are the keys here, and the value is a factory rather than an
 # instance: building a provider can read a key or import a client library, and
 # neither should happen for a provider nobody asked for.
-TTS_PROVIDERS: dict[str, Callable[[], Any]] = {"mock": MockTTS}
-ASR_PROVIDERS: dict[str, Callable[[], Any]] = {"mock": MockASR}
-LLM_PROVIDERS: dict[str, Callable[[], Any]] = {"mock": MockLLM}
+#
+# "openai" means "anything that serves the OpenAI HTTP shape", which is the point
+# of the adapter - the name is the protocol, not the company.
+TTS_PROVIDERS: dict[str, Callable[[], Any]] = {"mock": MockTTS, "openai": _openai_tts}
+ASR_PROVIDERS: dict[str, Callable[[], Any]] = {"mock": MockASR, "openai": _openai_asr}
+LLM_PROVIDERS: dict[str, Callable[[], Any]] = {"mock": MockLLM, "openai": _openai_llm}
 
 DEFAULT_PROVIDER = "mock"
 

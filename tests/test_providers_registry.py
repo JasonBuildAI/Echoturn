@@ -1,8 +1,14 @@
 import pytest
 
+from echoturn.errors import ProviderError
 from echoturn.protocols import ASRClient, LLMClient, TTSClient
 from echoturn.providers import registry
 from echoturn.providers.mock import MockASR, MockLLM, MockTTS
+from echoturn.providers.openai_compatible import (
+    OpenAICompatibleASR,
+    OpenAICompatibleLLM,
+    OpenAICompatibleTTS,
+)
 
 
 def test_the_default_is_a_provider_that_needs_no_key_and_no_network():
@@ -52,3 +58,22 @@ def test_every_registered_provider_builds_into_something_of_the_right_shape():
     assert isinstance(registry.TTS_PROVIDERS["mock"](), TTSClient)
     assert isinstance(registry.ASR_PROVIDERS["mock"](), ASRClient)
     assert isinstance(registry.LLM_PROVIDERS["mock"](), LLMClient)
+
+
+def test_the_remote_providers_are_reachable_by_name():
+    assert isinstance(registry.make_tts("openai"), OpenAICompatibleTTS)
+    assert isinstance(registry.make_asr("openai"), OpenAICompatibleASR)
+    assert isinstance(registry.make_llm("openai"), OpenAICompatibleLLM)
+
+
+def test_a_remote_provider_is_built_without_a_key(monkeypatch):
+    """A host may build all three providers and use only some of them."""
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    assert registry.make_tts("openai").model
+
+
+def test_a_remote_provider_refuses_to_send_a_request_without_a_key(monkeypatch):
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    with pytest.raises(ProviderError) as excinfo:
+        list(registry.make_llm("openai").stream([]))
+    assert "OPENAI_API_KEY" in str(excinfo.value)
