@@ -146,14 +146,16 @@ class LLMClient:
 
 | 文档 | 内容 |
 |---|---|
-| [docs/README.md](docs/README.md) | 索引：读什么，按什么顺序读 |
-| [docs/architecture.md](docs/architecture.md) | 模块、线程模型、数据流 |
-| [docs/events.md](docs/events.md) | 每个事件的线上契约 |
-| [docs/providers.md](docs/providers.md) | 怎么写一个 ASR / TTS / LLM 适配器 |
-| [docs/turn-taking.md](docs/turn-taking.md) | 断句、插话、回声处理 |
-| [docs/tuning.md](docs/tuning.md) | 每一个旋钮与它的默认值是怎么量出来的 |
-| [docs/client.md](docs/client.md) | 浏览器端：采集、播放、打断 |
-| [docs/benchmarks.md](docs/benchmarks.md) | 延迟报告量的是什么，怎么读 |
+| [docs/README.zh-CN.md](docs/README.zh-CN.md) | 索引：读什么，按什么顺序读 |
+| [docs/architecture.zh-CN.md](docs/architecture.zh-CN.md) | 模块、线程模型、数据流 |
+| [docs/events.zh-CN.md](docs/events.zh-CN.md) | 每个事件的线上契约 |
+| [docs/providers.zh-CN.md](docs/providers.zh-CN.md) | 怎么写一个 ASR / TTS / LLM 适配器 |
+| [docs/turn-taking.zh-CN.md](docs/turn-taking.zh-CN.md) | 断句、插话、回声处理 |
+| [docs/tuning.zh-CN.md](docs/tuning.zh-CN.md) | 每一个旋钮与它的默认值是怎么量出来的 |
+| [docs/client.zh-CN.md](docs/client.zh-CN.md) | 浏览器端：采集、播放、打断 |
+| [docs/benchmarks.zh-CN.md](docs/benchmarks.zh-CN.md) | 延迟报告量的是什么，怎么读 |
+
+每一份都有对应的英文版，**英文版是唯一真源**；两版不一致时以英文版为准。
 
 English README: [README.md](README.md)。
 

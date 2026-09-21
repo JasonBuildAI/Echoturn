@@ -10,6 +10,10 @@
 | [client.md](client.md) | the browser client, module by module |
 | [benchmarks.md](benchmarks.md) | what the latency report measures, and how to read it |
 
+Every guide here has a Chinese counterpart named `<name>.zh-CN.md`, and this
+index has one too: [README.zh-CN.md](README.zh-CN.md). The English page is the
+authority, and the two are changed in one commit.
+
 New here? Read [architecture.md](architecture.md) first, then
 [turn-taking.md](turn-taking.md) - the second one is where the interesting
 decisions are, and the ones a reasonable-looking change breaks silently.
