@@ -45,12 +45,20 @@ def test_a_cjk_file_is_reported(tmp_path):
 
 
 def test_the_chinese_readme_is_the_one_exception(tmp_path):
-    """By name, and only by name - see the note in is_allowed."""
-    allowed = tmp_path / sorted(GUARD.ALLOWED)[0]
+    """By suffix, and only that suffix - see the note in is_allowed."""
+    allowed = tmp_path / ("README" + GUARD.ALLOWED_SUFFIX)
     allowed.write_text("# \u4e2d\u6587\n", "utf-8")
     assert GUARD.scan_files([str(allowed)]) == []
     assert GUARD.is_allowed(allowed)
     assert not GUARD.is_allowed(tmp_path / "README.md")
+
+
+def test_a_name_that_merely_looks_allowed_is_not(tmp_path):
+    """A near miss has to be reported, or the exception is a free pass."""
+    nearly = tmp_path / "NOT-zh-CN.md"
+    nearly.write_text("# \u4e2d\u6587\n", "utf-8")
+    assert not GUARD.is_allowed(nearly)
+    assert len(GUARD.scan_files([str(nearly)])) == 1
 
 
 def test_the_self_test_passes():

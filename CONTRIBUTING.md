@@ -58,12 +58,14 @@ We use [Conventional Commits](https://www.conventionalcommits.org/):
 
 ## Documentation language
 
-Code comments, docstrings and everything under `docs/` are in English. The only
-exception is `README.zh-CN.md`, which mirrors the English README. If you change
-one README, change the other in the same commit.
+Code comments, docstrings and everything in `docs/` are in English. Every
+English document has a Chinese counterpart whose name ends in `.zh-CN.md`, and
+the English one is the authority: the Chinese file says so at the top and lives
+in the same commit as the change to its English original.
 
-`scripts/check_language.py` reports every other file that contains CJK text and
-does not fail the build, because the tests use Chinese punctuation as data.
+`scripts/check_language.py` reports every file outside that convention that
+contains CJK text and does not fail the build, because the tests use Chinese
+punctuation as data.
 
 ## Pull requests
 

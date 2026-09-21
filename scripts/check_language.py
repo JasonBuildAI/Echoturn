@@ -2,8 +2,9 @@
 """Warn when a file that is meant to be English carries CJK text.
 
 The repository is written in English: comments, docstrings, documentation and
-commit messages. ``README.zh-CN.md`` is the one deliberate exception, because it
-mirrors the English README for people who would rather read Chinese.
+commit messages. Files named ``*.zh-CN.md`` are the deliberate exception, because
+they mirror the English ones for people who would rather read Chinese. The
+English file of a pair is the authority; the Chinese one says so at the top.
 
 This is a warning and not a gate, and that is not laziness - it is the only
 honest setting. The pipeline is language-agnostic, so its tests carry Chinese
@@ -37,8 +38,8 @@ from pathlib import Path
 # punctuation block on its own: "、" and "。" in a test are data.
 CJK = re.compile(r"[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]")
 
-# The one file allowed to be Chinese, and the reason it is allowed.
-ALLOWED = frozenset({"README.zh-CN.md"})
+# The one naming convention allowed to be Chinese, and the reason it is allowed.
+ALLOWED_SUFFIX = ".zh-CN.md"
 
 SKIP_DIRS = frozenset(
     {
@@ -69,14 +70,14 @@ def scan_text(text: str) -> tuple[int, list[int]]:
 
 
 def is_allowed(path: str | Path) -> bool:
-    """One exception, by file name, wherever it is.
+    """One exception, by suffix, wherever the file is.
 
-    By name and not by path: the allowed file is allowed wherever it lives, and
+    By suffixes and not by path: an allowed file is allowed wherever it lives, and
     a comparison against a path built from the repository root would also exempt
     every unrelated file that happens to sit at the root - the self-test found
     exactly that, by putting its canary there.
     """
-    return Path(path).name in ALLOWED
+    return Path(path).name.endswith(ALLOWED_SUFFIX)
 
 
 def walk_files(root: Path) -> list[str]:
@@ -129,10 +130,16 @@ def self_test() -> int:
         if scan_files([str(canary)]) == []:
             print("self-test FAILED: the scan did not report", file=sys.stderr)
             return 2
-        allowed = root / sorted(ALLOWED)[0]
+        allowed = root / ("anything" + ALLOWED_SUFFIX)
         allowed.write_text("# \u4e2d\u6587\n", "utf-8")
         if scan_files([str(allowed)]):
             print("self-test FAILED: the allowed file was reported", file=sys.stderr)
+            return 2
+        # A file that merely mentions the suffix is not exempt.
+        nearly = root / "NOT-zh-CN.md"
+        nearly.write_text("# \u4e2d\u6587\n", "utf-8")
+        if not scan_files([str(nearly)]):
+            print("self-test FAILED: a near miss was exempted", file=sys.stderr)
             return 2
     print(
         f"language check: self-test ok ({len(lines)} line(s) seen, "
@@ -169,8 +176,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     hits = scan_files(paths)
     if not hits:
-        allowed = ", ".join(sorted(ALLOWED))
-        print(f"language check: clean (no CJK outside {allowed})")
+        print(f"language check: clean (no CJK outside *{ALLOWED_SUFFIX})")
         return 0
 
     print(
