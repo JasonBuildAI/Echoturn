@@ -60,6 +60,7 @@ python -m examples.minimal_call.app         # 浏览器里直接跟它说话
 
 ```bash
 pip install echoturn            # 核心：流水线 + 供应商，不含 Web 框架
+pip install "echoturn[dsp]"     # 加上音高与语速处理（numpy）
 pip install "echoturn[vad]"     # 加上本地断句 / 说完判定模型
 pip install "echoturn[web]"     # 加上 FastAPI 的 SSE 适配与示例页
 pip install "echoturn[cli]"     # 加上 sounddevice 的麦克风 / 扬声器示例

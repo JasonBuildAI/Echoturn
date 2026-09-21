@@ -76,6 +76,7 @@ python -m examples.minimal_call.app
 
 ```bash
 pip install echoturn            # core: pipeline + providers, no web framework
+pip install "echoturn[dsp]"     # + pitch and speed processing (numpy)
 pip install "echoturn[vad]"     # + local speech detection and endpointing models
 pip install "echoturn[web]"     # + FastAPI SSE adapter and the demo page
 pip install "echoturn[cli]"     # + sounddevice microphone/speaker demo
