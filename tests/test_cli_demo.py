@@ -6,7 +6,7 @@ import io
 
 from echoturn.audio import pcm16_to_wav
 from echoturn.cli.audio import Speaker
-from echoturn.cli.demo import ClipCollector, Ear, Session, main, parse_args
+from echoturn.cli.demo import ClipCollector, Ear, Once, Session, main, parse_args
 from echoturn.providers import MockTTS
 from echoturn.store import InMemoryStore
 from pipeline_helpers import FakeASR, FakeLLM, FakeTTS
@@ -256,3 +256,13 @@ def test_the_gate_reads_the_dial_table_when_no_number_is_given():
 
     heard = Ear(listener=ScriptedMicrophone(), asr=FakeASR())
     assert heard.min_speech_ms() == dials()["min_speech_ms"]
+
+
+def test_a_message_worth_saying_once_is_said_once():
+    said: list[str] = []
+    once = Once(said.append)
+    assert once.say("no audio device") is True
+    assert once.say("no audio device") is False
+    assert once.say("") is False
+    assert once.say("something else") is True
+    assert said == ["no audio device", "something else"]

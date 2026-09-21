@@ -236,6 +236,26 @@ class Ear:
             self.echo(f"note: {reason}")
 
 
+class Once:
+    """Something worth saying the first time and not the twentieth.
+
+    A machine with no sound card is not a different problem on the second reply,
+    and repeating the same line under every turn buries the reply it is about.
+    """
+
+    def __init__(self, echo: Callable[[str], None] = print) -> None:
+        self.echo = echo
+        self.said: set[str] = set()
+
+    def say(self, text: str) -> bool:
+        """Say ``text`` if it has not been said; true when it was."""
+        if not text or text in self.said:
+            return False
+        self.said.add(str(text))
+        self.echo(str(text))
+        return True
+
+
 def _decode(data: object) -> bytes:
     """One event's payload as bytes; unreadable payloads become nothing."""
     try:
@@ -280,18 +300,15 @@ def main(argv: list[str] | None = None, *, session=None, speaker=None) -> int:
         )
     if speaker is None:
         speaker = Speaker()
-    # Said once, not once per turn: a machine with no sound card is not a
-    # different problem on the second reply, and repeating it buries the reply.
-    reported = False
+    device_problem = Once(lambda line: print(line, file=sys.stderr, flush=True))
     for line in sys.stdin:
         if not line.strip():
             continue
         said = session.say(line)
         if args.no_play or not said["audio"]:
             continue
-        if not speaker.play(said["audio"], said["sample_rate"]) and not reported:
-            print(speaker.error, file=sys.stderr, flush=True)
-            reported = True
+        if not speaker.play(said["audio"], said["sample_rate"]):
+            device_problem.say(speaker.error)
     return 0
 
 
