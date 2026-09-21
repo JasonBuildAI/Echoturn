@@ -123,8 +123,9 @@ numbers that need it.
 
 ### What happens to the audio heard while the reply was being made
 
-The client keeps it. `clients/ring.js` holds `ECHOTURN_BARGE_MS * 4` of frames,
-and `clients/ring.js: PREROLL_MS` (200 ms) holds what came before that.
+The client keeps it. `clients/ring.js` holds what was said during the reply -
+`ECHOTURN_BARGE_MS * 4`, four times the length of an interruption - and
+`PREROLL_MS` (200 ms) of what came before that.
 
 The carry is taken **before** the turn is stopped. Stopping a turn throws away
 everything waiting in a buffer, so taking it afterwards leaves the interruption
