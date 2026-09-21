@@ -1,17 +1,14 @@
 // Playing a turn's audio, in order, without audible joins.
+//
+// Imported rather than re-exported: there is one base64 implementation in this
+// client, and a second copy under a different name is a second place for the
+// chunk-size limit to be got wrong.
+import { bytesFromBase64 } from "./base64.js";
 
 // How far ahead of the clock the first chunk is scheduled. Starting exactly
 // "now" is a race the clock usually wins, and a source started in the past
 // begins mid-sample or not at all.
 export const LEAD_SEC = 0.015;
-
-/** The bytes behind a base64 string. */
-export function bytesFromBase64(text) {
-  const binary = atob(text);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
-  return bytes;
-}
 
 function defaultContext() {
   const Ctor = globalThis.AudioContext || globalThis.webkitAudioContext;

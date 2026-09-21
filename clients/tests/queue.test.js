@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { LEAD_SEC, PlaybackQueue, bytesFromBase64 } from "../queue.js";
+import { LEAD_SEC, PlaybackQueue } from "../queue.js";
 
 /** A stand-in for the audio clock, with just enough of it to schedule on. */
 class FakeContext {
@@ -60,10 +60,6 @@ function build({ durations = {}, speaking = [] } = {}) {
   queue.context().decodeAudioData = decode;
   return { context, queue, speaking };
 }
-
-test("base64 becomes the bytes it was made from", () => {
-  assert.deepEqual(Array.from(bytesFromBase64(base64("\x00\x01\xfe"))), [0, 1, 254]);
-});
 
 test("chunks are played by their number, not by when they arrived", async () => {
   const { context, queue } = build({ durations: { a: 1, b: 1, c: 1 } });
