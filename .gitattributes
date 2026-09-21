@@ -1,0 +1,16 @@
+# Store every text file with LF in the repository. A single stray CR makes git
+# treat a whole file as binary, which silently turns a one-line diff into a
+# full-file rewrite.
+* text=auto eol=lf
+
+# Keep binary assets untouched.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.wav binary
+*.onnx binary
+*.woff binary
+*.woff2 binary
