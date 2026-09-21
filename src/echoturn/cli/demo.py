@@ -17,15 +17,16 @@ from __future__ import annotations
 import argparse
 import base64
 import sys
+import threading
 from collections.abc import Callable, Mapping
 
 from ..audio import decode_16k_mono, pcm16_to_wav, read_wav
 from ..config import dials, env_str
 from ..pipeline import TurnDeps, TurnInput, run_turn
-from ..providers import make_llm, make_tts
+from ..providers import make_asr, make_llm, make_tts
 from ..store import InMemoryStore, TranscriptStore
 from ..vad import build_vad
-from .audio import Speaker
+from .audio import Listener, Speaker
 
 # The one thing a demo has to decide for itself. A host would put its own
 # product's prompt here; a pipeline cannot guess one, and a default that
@@ -276,6 +277,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="what the assistant is told it is; overrides the built-in line",
     )
     parser.add_argument(
+        "--mic",
+        action="store_true",
+        help="talk instead of typing: enter to start, enter again to send",
+    )
+    parser.add_argument(
         "--no-play",
         action="store_true",
         help="print the reply without sending its audio to a speaker",
@@ -283,12 +289,63 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def main(argv: list[str] | None = None, *, session=None, speaker=None) -> int:
+def _stop_on_enter(source, stop) -> None:
+    """Read one line from the keyboard, then signal the recording to stop."""
+    source.readline()
+    stop.set()
+
+
+def conversation(
+    session,
+    *,
+    ear,
+    speaker=None,
+    play: bool = True,
+    source=None,
+    echo: Callable[[str], None] = print,
+) -> int:
+    """One turn per pair of enter presses, until the input ends.
+
+    Enter starts the recording and enter sends it. The terminal has no other way
+    to say "I have finished": a keyboard has no release, and guessing from the
+    silence would be a second endpointing rule living in a demo - a worse one,
+    on the one surface where nobody would ever look for it.
+    """
+    source = sys.stdin if source is None else source
+    if speaker is None:
+        speaker = Speaker()
+    device_problem = Once(lambda line: print(line, file=sys.stderr, flush=True))
+    while True:
+        if source.readline() == "":
+            return 0
+        stop = threading.Event()
+        # The keyboard is read on a thread of its own because this one is about
+        # to block on the sound card, and a blocking read that cannot be
+        # interrupted is what makes the second thread necessary.
+        threading.Thread(
+            target=_stop_on_enter, args=(source, stop), daemon=True
+        ).start()
+        echo("listening - press enter to send")
+        text = ear.hear(stop)
+        if not text:
+            continue
+        said = session.say(text, input_kind="voice")
+        if (
+            play
+            and said["audio"]
+            and not speaker.play(said["audio"], said["sample_rate"])
+        ):
+            device_problem.say(speaker.error)
+
+
+def main(
+    argv: list[str] | None = None, *, session=None, speaker=None, ear=None
+) -> int:
     """Read a turn from the terminal, print it, repeat until end of input.
 
-    The session and the speaker are injectable so that the loop can be tested
-    without a sound card and without a provider: what is worth checking here is
-    the loop, not the wiring it was handed.
+    The session, the speaker and the ear are injectable so that the loops can be
+    tested without a sound card and without a provider: what is worth checking
+    here is the loop, not the wiring it was handed.
     """
     args = parse_args(argv)
     if session is None:
@@ -300,6 +357,12 @@ def main(argv: list[str] | None = None, *, session=None, speaker=None) -> int:
         )
     if speaker is None:
         speaker = Speaker()
+    if args.mic:
+        if ear is None:
+            ear = Ear(listener=Listener(), asr=make_asr())
+        return conversation(
+            session, ear=ear, speaker=speaker, play=not args.no_play
+        )
     device_problem = Once(lambda line: print(line, file=sys.stderr, flush=True))
     for line in sys.stdin:
         if not line.strip():

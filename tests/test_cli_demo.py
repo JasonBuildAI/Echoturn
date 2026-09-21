@@ -3,10 +3,19 @@ from __future__ import annotations
 
 import base64
 import io
+import time
 
 from echoturn.audio import pcm16_to_wav
 from echoturn.cli.audio import Speaker
-from echoturn.cli.demo import ClipCollector, Ear, Once, Session, main, parse_args
+from echoturn.cli.demo import (
+    ClipCollector,
+    Ear,
+    Once,
+    Session,
+    conversation,
+    main,
+    parse_args,
+)
 from echoturn.providers import MockTTS
 from echoturn.store import InMemoryStore
 from pipeline_helpers import FakeASR, FakeLLM, FakeTTS
@@ -266,3 +275,80 @@ def test_a_message_worth_saying_once_is_said_once():
     assert once.say("") is False
     assert once.say("something else") is True
     assert said == ["no audio device", "something else"]
+
+
+class ScriptedEar:
+    """An ear that answers with what it was told, once it is told to stop.
+
+    The wait is the part that matters: a real recording ends when the person
+    presses enter, so a stand-in that answered immediately would let the loop
+    look right while never exercising the signal that ends it.
+    """
+
+    def __init__(self, lines: list[str]) -> None:
+        self.lines = list(lines)
+        self.ended = 0
+
+    def hear(self, stop) -> str:
+        for _ in range(2000):
+            if stop.is_set():
+                self.ended += 1
+                break
+            time.sleep(0.001)
+        return self.lines.pop(0) if self.lines else ""
+
+
+def test_talking_takes_one_turn_per_pair_of_enter_presses():
+    session = Session(llm=FakeLLM([REPLY]), tts=None, echo=lambda _: None)
+    ear = ScriptedEar(["are you there", "yes I am"])
+    prompts: list[str] = []
+    code = conversation(
+        session,
+        ear=ear,
+        speaker=DeafSpeaker(),
+        source=io.StringIO("start\nsend\nstart\nsend\n"),
+        echo=prompts.append,
+    )
+    assert code == 0
+    assert ear.ended == 2
+    assert prompts == ["listening - press enter to send"] * 2
+
+
+def test_a_spoken_turn_is_labelled_as_spoken():
+    llm = FakeLLM([REPLY])
+    session = Session(llm=llm, tts=None, echo=lambda _: None)
+    conversation(
+        session,
+        ear=ScriptedEar(["hello"]),
+        speaker=DeafSpeaker(),
+        source=io.StringIO("start\nsend\n"),
+        echo=lambda _: None,
+    )
+    assert llm.calls == 1
+
+
+def test_a_recording_that_turned_out_to_be_nothing_starts_no_turn():
+    llm = FakeLLM([REPLY])
+    session = Session(llm=llm, tts=None, echo=lambda _: None)
+    conversation(
+        session,
+        ear=ScriptedEar([""]),
+        speaker=DeafSpeaker(),
+        source=io.StringIO("start\nsend\n"),
+        echo=lambda _: None,
+    )
+    assert llm.calls == 0
+
+
+def test_a_spoken_reply_can_be_left_off_the_speaker():
+    session = Session(llm=FakeLLM([REPLY]), tts=real_voice(), echo=lambda _: None)
+    speaker = DeafSpeaker()
+    conversation(
+        session,
+        ear=ScriptedEar(["hello"]),
+        speaker=speaker,
+        play=False,
+        source=io.StringIO("start\nsend\n"),
+        echo=lambda _: None,
+    )
+    assert speaker.attempts == 0
