@@ -6,10 +6,10 @@ import io
 
 from echoturn.audio import pcm16_to_wav
 from echoturn.cli.audio import Speaker
-from echoturn.cli.demo import ClipCollector, Session, main, parse_args
+from echoturn.cli.demo import ClipCollector, Ear, Session, main, parse_args
 from echoturn.providers import MockTTS
 from echoturn.store import InMemoryStore
-from pipeline_helpers import FakeLLM, FakeTTS
+from pipeline_helpers import FakeASR, FakeLLM, FakeTTS
 
 REPLY = "First sentence, long enough not to be joined. Second one, also long enough."
 
@@ -169,3 +169,90 @@ def test_an_empty_line_does_not_start_a_turn_on_the_command_line(monkeypatch):
     )
     assert code == 0
     assert speaker.attempts == 1
+
+
+class ScriptedMicrophone:
+    """A microphone that answers with the audio it was told to."""
+
+    def __init__(self, pcm: bytes = b"", *, rate: int = 16000, error: str = "") -> None:
+        self.pcm = pcm
+        self.rate = rate
+        self.error = error
+        self.stops: list[object] = []
+
+    def record(self, stop) -> bytes:
+        self.stops.append(stop)
+        return self.pcm
+
+
+class ScriptedDetector:
+    """A speech detector that answers with what it was told to."""
+
+    def __init__(self, report: dict | None = None, reason: str = "") -> None:
+        self.answer = dict(report or {})
+        self.reason = reason
+        self.samples: list[object] = []
+
+    def report(self, samples) -> dict:
+        self.samples.append(samples)
+        return dict(self.answer)
+
+
+SECOND = pcm16_to_wav(b"\x00\x00" * 16000, 16000)
+
+
+def ear(**kwargs):
+    said: list[str] = []
+    asr = FakeASR("what was said")
+    heard = Ear(asr=asr, echo=said.append, min_speech_ms=300, **kwargs)
+    return heard, asr, said
+
+
+def test_a_recording_with_speech_in_it_is_recognised():
+    listener = ScriptedMicrophone(b"\x00\x00" * 16000)
+    heard, asr, _ = ear(listener=listener, vad=ScriptedDetector({"speech_ms": 900}))
+    assert heard.hear(object()) == "what was said"
+    assert asr.calls == [
+        {"bytes": len(SECOND), "sample_rate": 16000, "fmt": "wav", "lang": "auto"}
+    ]
+
+
+def test_a_recording_with_too_little_speech_never_reaches_the_recogniser():
+    """A cough is not a turn, and sending it costs a reply and a bill for one."""
+    heard, asr, said = ear(
+        listener=ScriptedMicrophone(b"\x00\x00" * 16000),
+        vad=ScriptedDetector({"speech_ms": 80}),
+    )
+    assert heard.hear(object()) == ""
+    assert asr.calls == []
+    assert said == ["that was too short to be a turn"]
+
+
+def test_a_recording_nothing_could_measure_is_sent_anyway():
+    """Dropping a real sentence on a measurement that never happened is worse."""
+    heard, asr, said = ear(
+        listener=ScriptedMicrophone(b"\x00\x00" * 16000),
+        vad=ScriptedDetector({}, reason="the speech model is not there"),
+    )
+    assert heard.hear(object()) == "what was said"
+    assert len(asr.calls) == 1
+    assert said == ["note: the speech model is not there"]
+    # Said once: a machine without the model is not a new problem every turn.
+    heard.hear(object())
+    assert said == ["note: the speech model is not there"]
+
+
+def test_a_recording_of_nothing_says_why_it_was_empty():
+    heard, _, said = ear(
+        listener=ScriptedMicrophone(b"", error="device busy"),
+        vad=ScriptedDetector({"speech_ms": 900}),
+    )
+    assert heard.hear(object()) == ""
+    assert said == ["device busy"]
+
+
+def test_the_gate_reads_the_dial_table_when_no_number_is_given():
+    from echoturn.config import dials
+
+    heard = Ear(listener=ScriptedMicrophone(), asr=FakeASR())
+    assert heard.min_speech_ms() == dials()["min_speech_ms"]
