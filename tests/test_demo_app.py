@@ -55,7 +55,9 @@ def test_the_page_is_served(demo):
     response = build(demo).get("/")
     assert response.status_code == 200
     assert "text/html" in response.headers["content-type"]
-    assert "/api/turn" in response.text
+    # The page runs the client rather than the wire protocol: it is a page, and
+    # the client is the thing that knows what a turn is.
+    assert "/client/echoturn-client.js" in response.text
 
 
 def test_the_config_route_is_the_dial_table_itself(demo):
