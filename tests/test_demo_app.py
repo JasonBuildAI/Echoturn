@@ -1,6 +1,9 @@
 import base64
 import importlib.util
 import json
+import re
+import shutil
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -18,6 +21,11 @@ REPLY = "第一句话要写得足够长才不会被并进上一片。第二句�
 DEMO_APP = (
     Path(__file__).resolve().parent.parent / "examples" / "minimal_call" / "app.py"
 )
+DEMO_PAGE = DEMO_APP.parent / "index.html"
+
+# The client the page is written against. Served by the demo, shipped in the
+# repository, and the only JavaScript the page is allowed to depend on.
+CLIENT_ENTRY = "/client/echoturn-client.js"
 
 
 @pytest.fixture
@@ -58,6 +66,42 @@ def test_the_page_is_served(demo):
     # The page runs the client rather than the wire protocol: it is a page, and
     # the client is the thing that knows what a turn is.
     assert "/client/echoturn-client.js" in response.text
+
+
+def page_module() -> str:
+    """The page's inline module, as text."""
+    page = DEMO_PAGE.read_text("utf-8")
+    found = re.search(r'<script type="module">(.*?)</script>', page, re.S)
+    assert found, "the page has no module script"
+    return found.group(1)
+
+
+def test_the_page_runs_the_client_and_not_the_wire_protocol():
+    """A page that speaks the wire protocol itself is a second client."""
+    module = page_module()
+    assert CLIENT_ENTRY in module
+    for reached_for in ("/api/", "EventSource", "text/event-stream", "atob"):
+        assert reached_for not in module, f"the page reaches for {reached_for}"
+
+
+def test_the_entry_the_page_imports_is_one_the_demo_serves(demo):
+    """A page whose import 404s is a blank page, and nothing says so."""
+    module = page_module()
+    imported = re.search(r'from "(/client/[^"]+)"', module)
+    assert imported, "the page imports nothing from the client directory"
+    assert build(demo).get(imported.group(1)).status_code == 200
+
+
+def test_the_page_module_parses(tmp_path):
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("node is not installed")
+    path = tmp_path / "page.mjs"
+    path.write_text(page_module(), encoding="utf-8")
+    done = subprocess.run(
+        [node, "--check", str(path)], capture_output=True, text=True, check=False
+    )
+    assert done.returncode == 0, done.stderr
 
 
 def test_the_config_route_is_the_dial_table_itself(demo):
