@@ -7,6 +7,7 @@ def test_the_documented_names_are_exported():
         "SpeechStyle",
         "TEXT_STYLE",
         "VOICE_STYLE",
+        "clean_reply",
         "get_style",
         "has_reasoning",
         "is_message_sep",

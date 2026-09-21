@@ -6,6 +6,7 @@ from .messages import shape_messages, split_messages
 from .normalize import normalize_speech
 from .punctuation import cap_ellipsis, cap_tilde, strip_decorations
 from .reasoning import has_reasoning, strip_reasoning
+from .reply import clean_reply
 from .sentences import iter_message_sentences, iter_sentences
 from .separators import is_message_sep
 from .speakable import is_speakable
@@ -31,6 +32,7 @@ __all__ = [
     "SpeechStyle",
     "cap_ellipsis",
     "cap_tilde",
+    "clean_reply",
     "get_style",
     "has_reasoning",
     "is_message_sep",
