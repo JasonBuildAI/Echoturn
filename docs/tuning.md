@@ -1,5 +1,7 @@
 # Tuning
 
+Chinese: [tuning.zh-CN.md](tuning.zh-CN.md)
+
 Every threshold in this package is an environment variable, and `DIALS` in
 `echoturn.config` is the only place those numbers are written down. A second
 copy in a provider or in a demo page is how one of them ends up stale while
