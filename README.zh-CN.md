@@ -74,6 +74,17 @@ pip install "echoturn[cli]"     # 加上 sounddevice 的麦克风 / 扬声器示
 核心只依赖 `httpx`；Web 框架与 ONNX 运行时刻意做成可选 —— 流水线只产出事件，
 怎么送出去由宿主决定。
 
+`echoturn[vad]` 背后那两个 ONNX 模型不进 wheel（几十兆）。在你让设置去找它们的
+位置装一次就够：
+
+```bash
+echoturn-fetch-models           # 缺什么下什么（等价：python scripts/fetch_models.py）
+echoturn-fetch-models --check   # 把已装上的加载起来跑一次
+```
+
+除此之外没有东西需要它们。文件不在时，一轮结束只能靠静音截止时间，
+`build_vad` 与 `build_turn` 都会在返回值里**明说**这一点，而不是悄悄降级。
+
 ## 配置
 
 所有设置都是环境变量，**用的时候才读**（不是导入时读一次），所以常驻进程改了配置
