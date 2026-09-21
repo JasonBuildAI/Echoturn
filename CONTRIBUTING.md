@@ -39,10 +39,12 @@ pytest                          # the whole suite, offline
 pytest tests/test_text_sentences.py -q   # one module while iterating
 node --check clients/echoturn-client.js  # browser client syntax
 python scripts/check_privacy.py          # no private identifiers anywhere
+python scripts/check_language.py         # warns about CJK outside the one README
 ```
 
-The suite must pass **without network access** and without any API key. Tests
-that need a real provider are marked and never run in CI.
+The suite must pass **without network access** and without any API key. That is
+not a preference: CI has neither, so a test that reaches for a socket fails
+there - the fix is to fake the provider, not to mark the test and move on.
 
 ## Commit guidelines
 
@@ -59,6 +61,9 @@ We use [Conventional Commits](https://www.conventionalcommits.org/):
 Code comments, docstrings and everything under `docs/` are in English. The only
 exception is `README.zh-CN.md`, which mirrors the English README. If you change
 one README, change the other in the same commit.
+
+`scripts/check_language.py` reports every other file that contains CJK text and
+does not fail the build, because the tests use Chinese punctuation as data.
 
 ## Pull requests
 

@@ -24,6 +24,8 @@ jobs:
         run: python scripts/check_privacy.py --self-test
       - name: Scan tracked files and commit messages
         run: python scripts/check_privacy.py
+      - name: Warn about CJK outside the Chinese README (never fails)
+        run: python scripts/check_language.py
 
   lint:
     name: lint
