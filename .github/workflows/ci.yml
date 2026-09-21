@@ -36,6 +36,20 @@ jobs:
       - run: python -m pip install "ruff>=0.5"
       - run: ruff check .
 
+  client:
+    name: client
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Check every module parses
+        run: |
+          for file in clients/*.js; do node --check "$file"; done
+      - name: Run the client suite
+        run: node --test "clients/tests/*.test.js"
+
   test:
     name: test (py${{ matrix.python }})
     runs-on: ubuntu-latest
