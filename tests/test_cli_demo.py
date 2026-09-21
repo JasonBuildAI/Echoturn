@@ -2,9 +2,12 @@
 from __future__ import annotations
 
 import base64
+import io
 
 from echoturn.audio import pcm16_to_wav
-from echoturn.cli.demo import ClipCollector, Session, parse_args
+from echoturn.cli.audio import Speaker
+from echoturn.cli.demo import ClipCollector, Session, main, parse_args
+from echoturn.providers import MockTTS
 from echoturn.store import InMemoryStore
 from pipeline_helpers import FakeLLM, FakeTTS
 
@@ -13,6 +16,40 @@ REPLY = "First sentence, long enough not to be joined. Second one, also long eno
 
 def collector() -> ClipCollector:
     return ClipCollector()
+
+
+def real_voice() -> MockTTS:
+    """A voice whose output is a real container.
+
+    The scripted voice in `pipeline_helpers` writes four bytes that only look
+    like a header, which is right for the pipeline - nothing in it reads the
+    audio - and wrong here: this demo parses the container, and a test written
+    against stand-in bytes would be asserting about an empty reply.
+    """
+    return MockTTS()
+
+
+class DeafSpeaker(Speaker):
+    """A speaker that records the attempts and always refuses."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.attempts = 0
+        self.error = "no audio device: pip install 'echoturn[cli]'"
+
+    def play(self, pcm: bytes, sample_rate: int) -> bool:
+        self.attempts += 1
+        return False
+
+
+def run_cli(monkeypatch, lines: list[str], **kwargs):
+    """Run the command line over a scripted stdin, and capture both streams."""
+    monkeypatch.setattr("sys.stdin", io.StringIO("\n".join(lines) + "\n"))
+    out, err = io.StringIO(), io.StringIO()
+    monkeypatch.setattr("sys.stdout", out)
+    monkeypatch.setattr("sys.stderr", err)
+    code = main([], **kwargs)
+    return code, out.getvalue(), err.getvalue()
 
 
 def clip(marker: bytes, samples: int = 8) -> str:
@@ -100,3 +137,35 @@ def test_the_demo_keeps_its_conversation_in_a_store_it_was_given():
         "user",
         "assistant",
     ]
+
+
+def test_the_reply_is_played_after_the_turn_that_produced_it(monkeypatch):
+    session = Session(llm=FakeLLM([REPLY]), tts=real_voice(), echo=lambda _: None)
+    speaker = DeafSpeaker()
+    code, _, err = run_cli(monkeypatch, ["hello"], session=session, speaker=speaker)
+    assert code == 0
+    assert speaker.attempts == 1
+    # Said once, in the stream meant for it: a missing sound card is not a
+    # different problem on the second reply.
+    assert err.count("no audio device") == 1
+    _, _, again = run_cli(
+        monkeypatch, ["one", "two"], session=session, speaker=DeafSpeaker()
+    )
+    assert again.count("no audio device") == 1
+
+
+def test_a_turn_that_produced_no_audio_is_not_sent_to_the_speaker(monkeypatch):
+    session = Session(llm=FakeLLM([REPLY]), tts=None, echo=lambda _: None)
+    speaker = DeafSpeaker()
+    run_cli(monkeypatch, ["hello"], session=session, speaker=speaker)
+    assert speaker.attempts == 0
+
+
+def test_an_empty_line_does_not_start_a_turn_on_the_command_line(monkeypatch):
+    session = Session(llm=FakeLLM([REPLY]), tts=real_voice(), echo=lambda _: None)
+    speaker = DeafSpeaker()
+    code, _, _ = run_cli(
+        monkeypatch, ["", "   ", "real"], session=session, speaker=speaker
+    )
+    assert code == 0
+    assert speaker.attempts == 1

@@ -24,6 +24,7 @@ from ..config import env_str
 from ..pipeline import TurnDeps, TurnInput, run_turn
 from ..providers import make_llm, make_tts
 from ..store import InMemoryStore, TranscriptStore
+from .audio import Speaker
 
 # The one thing a demo has to decide for itself. A host would put its own
 # product's prompt here; a pipeline cannot guess one, and a default that
@@ -174,21 +175,43 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default="",
         help="what the assistant is told it is; overrides the built-in line",
     )
+    parser.add_argument(
+        "--no-play",
+        action="store_true",
+        help="print the reply without sending its audio to a speaker",
+    )
     return parser.parse_args(argv)
 
 
-def main(argv: list[str] | None = None) -> int:
-    """Read a turn from the terminal, print it, repeat until end of input."""
+def main(argv: list[str] | None = None, *, session=None, speaker=None) -> int:
+    """Read a turn from the terminal, print it, repeat until end of input.
+
+    The session and the speaker are injectable so that the loop can be tested
+    without a sound card and without a provider: what is worth checking here is
+    the loop, not the wiring it was handed.
+    """
     args = parse_args(argv)
-    session = Session(
-        llm=make_llm(),
-        tts=make_tts(),
-        system_prompt=args.system,
-        echo=lambda line: print(f"assistant> {line}", flush=True),
-    )
+    if session is None:
+        session = Session(
+            llm=make_llm(),
+            tts=make_tts(),
+            system_prompt=args.system,
+            echo=lambda line: print(f"assistant> {line}", flush=True),
+        )
+    if speaker is None:
+        speaker = Speaker()
+    # Said once, not once per turn: a machine with no sound card is not a
+    # different problem on the second reply, and repeating it buries the reply.
+    reported = False
     for line in sys.stdin:
-        if line.strip():
-            session.say(line)
+        if not line.strip():
+            continue
+        said = session.say(line)
+        if args.no_play or not said["audio"]:
+            continue
+        if not speaker.play(said["audio"], said["sample_rate"]) and not reported:
+            print(speaker.error, file=sys.stderr, flush=True)
+            reported = True
     return 0
 
 
