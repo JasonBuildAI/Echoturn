@@ -109,6 +109,8 @@ Every setting is an environment variable and is read when it is used, not at
 import time, so a long-running process picks up a change without a restart. The
 turn-taking thresholds are collected in one table, `echoturn.config.DIALS`, and
 [docs/tuning.md](docs/tuning.md) explains what each one was measured against.
+[.env.example](.env.example) lists them all with their defaults; the values in
+it are the ones in the code, and a test fails when they drift apart.
 
 | variable | default | what it does |
 |---|---|---|
