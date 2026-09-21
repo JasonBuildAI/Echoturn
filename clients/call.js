@@ -76,6 +76,7 @@ export class Call {
     createContext = undefined,
     createOffline = undefined,
     onState = null,
+    onTurn = null,
     onSubtitle = null,
     onLevel = null,
     onNotice = null,
@@ -95,6 +96,7 @@ export class Call {
     this.fetch = fetchImpl;
     this.createOffline = createOffline;
     this.onState = onState;
+    this.onTurn = onTurn;
     this.onSubtitle = onSubtitle;
     this.onLevel = onLevel;
     this.onNotice = onNotice;
@@ -427,6 +429,11 @@ export class Call {
     this.interruptGate.reset();
     this.queue.stop();
     this.emitState();
+    // Reported here, before the request goes out, and reported as the *caller's*
+    // words rather than as the recogniser's answer: what a page puts on screen
+    // as the listener's own line has to be the same text the turn was started
+    // from, including when that text was typed rather than spoken.
+    if (this.onTurn) this.onTurn(message, inputKind);
     const body = {
       text: message,
       session: this.session,

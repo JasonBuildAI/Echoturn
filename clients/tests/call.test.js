@@ -313,3 +313,25 @@ test("interrupting stops the reply without closing the microphone", async () => 
   assert.equal(call.interrupt(), false, "nothing left to interrupt");
   assert.equal(asked.turn.length, 1);
 });
+
+test("a page is told the words each turn was started from", async () => {
+  const sent = [];
+  const { call, device } = build({
+    transcripts: [{ text: "spoken words" }],
+    turns: [[{ type: "done", reply: "ok" }]],
+    onTurn: (text, kind) => sent.push({ text, kind }),
+  });
+  await call.start();
+  await utter({ device });
+  assert.deepEqual(sent, [{ text: "spoken words", kind: "voice" }]);
+});
+
+test("a typed turn is reported as typed, not as heard", async () => {
+  const sent = [];
+  const { call } = build({
+    turns: [[{ type: "done", reply: "ok" }]],
+    onTurn: (text, kind) => sent.push({ text, kind }),
+  });
+  await call.say("typed words");
+  assert.deepEqual(sent, [{ text: "typed words", kind: "text" }]);
+});
