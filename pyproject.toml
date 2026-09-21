@@ -58,6 +58,7 @@ Issues = "https://github.com/JasonBuildAI/Echoturn/issues"
 
 [project.scripts]
 echoturn-demo = "echoturn.cli.demo:main"
+echoturn-fetch-models = "echoturn.models:main"
 
 [tool.hatch.version]
 path = "src/echoturn/__init__.py"
