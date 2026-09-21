@@ -52,9 +52,14 @@ Echoturn 把这部分单独抽出来做成一个小库，你继续用自己的 A
 
 ```bash
 pip install -e ".[web]"
-python -m echoturn.cli.demo --mock          # 终端里打字，听 mock 语音
+echoturn-demo --mock                        # 终端里打字，听蜂鸣音
+echoturn-demo --mock --mic                  # 改成说话（要装 echoturn[cli]）
 python examples/minimal_call/app.py         # 浏览器里打字跟它说话（mock 供应商）
 ```
+
+`echoturn-demo` 是随包安装的命令行入口；`python -m echoturn.cli.demo` 是同一个程序，
+不想依赖 `PATH` 时用后者。打字模式下回车发送；`--mic` 下第一次回车开始录音，
+再按一次回车把刚才说的发出去。
 
 ## 安装
 
