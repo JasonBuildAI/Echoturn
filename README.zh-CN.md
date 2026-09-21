@@ -139,6 +139,9 @@ class LLMClient:
 默认值是**量出来的**，不是拍出来的 —— 每一个数的来历见
 [docs/tuning.md](docs/tuning.md)。
 
+其中攒句阈值背后压着一个取舍，怎么在你自己的机器上把它量出来：
+[docs/benchmarks.md](docs/benchmarks.md)，`python bench/latency.py --compare`。
+
 ## 文档
 
 | 文档 | 内容 |
@@ -150,6 +153,7 @@ class LLMClient:
 | [docs/turn-taking.md](docs/turn-taking.md) | 断句、插话、回声处理 |
 | [docs/tuning.md](docs/tuning.md) | 每一个旋钮与它的默认值是怎么量出来的 |
 | [docs/client.md](docs/client.md) | 浏览器端：采集、播放、打断 |
+| [docs/benchmarks.md](docs/benchmarks.md) | 延迟报告量的是什么，怎么读 |
 
 English README: [README.md](README.md)。
 

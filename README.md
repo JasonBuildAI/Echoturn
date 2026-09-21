@@ -158,6 +158,10 @@ All thresholds live in one table (`echoturn.config.DIALS`) and are read from the
 environment at call time. The defaults are measured values, not guesses — see
 [docs/tuning.md](docs/tuning.md) for the reasoning behind each one.
 
+The chunk thresholds are the ones with a number attached to a decision, and
+[docs/benchmarks.md](docs/benchmarks.md) is how to put that number on your own
+machine: `python bench/latency.py --compare`.
+
 ## Documentation
 
 | document | what it covers |
@@ -169,6 +173,7 @@ environment at call time. The defaults are measured values, not guesses — see
 | [docs/turn-taking.md](docs/turn-taking.md) | endpointing, barge-in, echo handling |
 | [docs/tuning.md](docs/tuning.md) | every knob and how its default was measured |
 | [docs/client.md](docs/client.md) | the browser client: capture, playback, barge-in |
+| [docs/benchmarks.md](docs/benchmarks.md) | what the latency report measures, and how to read it |
 
 Chinese README: [README.zh-CN.md](README.zh-CN.md).
 

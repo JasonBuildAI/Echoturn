@@ -8,6 +8,7 @@
 | [turn-taking.md](turn-taking.md) | endpointing, interruption, echo handling |
 | [tuning.md](tuning.md) | every threshold, its default, and what it was measured against |
 | [client.md](client.md) | the browser client, module by module |
+| [benchmarks.md](benchmarks.md) | what the latency report measures, and how to read it |
 
 New here? Read [architecture.md](architecture.md) first, then
 [turn-taking.md](turn-taking.md) - the second one is where the interesting
