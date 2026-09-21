@@ -9,7 +9,10 @@ the audio toolchain can be replaced independently:
 * ``echoturn.endpoint``- "has this person finished their sentence" (optional extra)
 * ``echoturn.providers``- ASR/TTS/LLM adapters, including offline mocks
 * ``echoturn.pipeline`` - one turn, from text to ordered audio chunks
-* ``echoturn.server``  - transcript window, session bookkeeping, SSE encoding
+* ``echoturn.events``  - the seven events a turn emits, and their wire shape
+* ``echoturn.store``   - the recent-messages window, and one implementation
+* ``echoturn.integrations`` - serving a turn as server-sent events
+* ``echoturn.cli``     - a conversation in a terminal, and a microphone
 
 Nothing in the core imports a web framework: the pipeline yields plain events
 and the host decides how to ship them.
