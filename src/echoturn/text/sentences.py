@@ -115,24 +115,23 @@ def iter_sentences(
             if in_fence:
                 end = buf.find(FENCE)
                 if end < 0:
-                    buf = ""
+                    # Hold the longest tail that could still become the closing
+                    # marker. The stream hands over a token at a time, so the
+                    # marker arrives in halves; dropping them one at a time means
+                    # the fence never closes, and everything written after it is
+                    # read as code and lost.
+                    buf = _marker_tail(buf, FENCE)
                     break
                 buf = buf[end + len(FENCE):]
                 in_fence = False
                 continue
-            fence = buf.find(FENCE)
-            if fence >= 0:
-                head, buf = buf[:fence], buf[fence + len(FENCE):]
-                head = _clean_piece(head, st)
-                if head:
-                    yield head
-                in_fence = True
-                continue
-            # Data objects are judged before any boundary. A brace that may open
-            # one holds the text from there on, so a comma or a question mark
-            # inside a contract cannot cut a sentence out of it; a finished
-            # object is removed here, before the prose on either side of it is
-            # read. _clean_piece asks the same question once more on the way out.
+            # Data objects are judged before anything else in the buffer. A brace
+            # that may open one holds the text from there on, so a comma or a
+            # question mark inside a contract cannot cut a sentence out of it; a
+            # finished object is removed here, before the prose on either side of
+            # it is read. _clean_piece asks the same question once more on the
+            # way out. The scan also bounds the fence search below, because a
+            # fence marker written inside a JSON string is part of the string.
             stop = len(buf)
             index = 0
             while True:
@@ -152,6 +151,14 @@ def iter_sentences(
                     index = brace
                     continue
                 index = end
+            fence = buf.find(FENCE, 0, stop)
+            if fence >= 0:
+                head, buf = buf[:fence], buf[fence + len(FENCE):]
+                head = _clean_piece(head, st)
+                if head:
+                    yield head
+                in_fence = True
+                continue
             scannable = buf[:stop]
             hard = _first_index(scannable, HARD_BOUNDARY)
             if hard >= 0:
@@ -173,6 +180,14 @@ def iter_sentences(
         tail = _clean_piece(buf, st)
         if tail:
             yield tail
+
+
+def _marker_tail(text: str, marker: str) -> str:
+    """The longest suffix of ``text`` that could still grow into ``marker``."""
+    for size in range(min(len(marker) - 1, len(text)), 0, -1):
+        if text.endswith(marker[:size]):
+            return text[-size:]
+    return ""
 
 
 def _first_index(text: str, chars: str) -> int:

@@ -67,6 +67,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+* A closing fence marker that arrives split across chunks closes the fence
+  again. The stream hands over a token at a time, and the fence body dropped a
+  half-marker along with the code it was skipping - so the fence never closed and
+  every sentence written after it was read as code and lost. The longest tail
+  that could still turn into the marker is held back now.
 * Structured output no longer reaches a bubble or the ear. A `{...}` run that
   parses as a JSON object is removed from the reply and from the sentence stream,
   with the prose on both sides kept, wherever it stands - a model that writes its

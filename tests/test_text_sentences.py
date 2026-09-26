@@ -53,6 +53,13 @@ def test_a_fence_split_across_chunks_is_still_detected():
     assert list(iter_sentences(["好。`", "``x```", "然后。"])) == ["好。", "然后。"]
 
 
+def test_a_closing_fence_split_across_chunks_still_closes():
+    """A half-marker dropped on the floor never closes the fence, and the rest
+    of the reply is read as code and lost with it."""
+    chunks = ["好。", "```code", "`", "``然后。"]
+    assert list(iter_sentences(chunks)) == ["好。", "然后。"]
+
+
 def test_text_after_a_closing_fence_is_not_swallowed():
     """Regression: dropping the whole chunk lost the sentence after the fence."""
     assert list(iter_sentences(["```{\"a\": 1}```顺手说一句。"])) == ["顺手说一句。"]
@@ -97,6 +104,18 @@ def test_a_brace_in_prose_is_still_said():
     """The other direction: a typo must not lose a sentence."""
     text = "She wrote {not json at all} and left it there。"
     assert list(iter_sentences([text])) == [text]
+
+
+def test_a_fence_marker_inside_a_json_string_is_not_a_fence():
+    """The object is judged first; backticks in a string value are just text."""
+    text = '好。{"code": "```"}\n后话。'
+    assert list(iter_sentences([text])) == ["好。", "后话。"]
+    assert list(iter_sentences(list(text))) == ["好。", "后话。"]
+
+
+def test_a_fenced_object_is_not_spoken_either():
+    text = '好。\n```json\n{"a": 1}\n```\n后话。'
+    assert list(iter_sentences(list(text))) == ["好。", "后话。"]
 
 
 def test_stage_directions_are_removed_before_speaking():
