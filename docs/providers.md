@@ -140,6 +140,15 @@ request pays for a TCP and TLS handshake on the critical path, which is the cost
 the shared client exists to avoid. Sixty seconds covers the gaps a call actually
 has; lower it if holding sockets that long is not acceptable on your network.
 
+The pool only helps while there is a connection in it, though. The first request
+after a process starts - and the first request to a service that has put its own
+model to sleep - pays for the handshake and for the provider's cold start, and if
+the host has a moment before the first turn (a call screen opening, a
+conversation being created), one tiny request spent there moves that cost off the
+first reply's critical path. That is host code by design: this package has no
+call lifecycle to hang it on, and only the host knows which providers it wired
+up.
+
 ## Failures
 
 A provider that fails raises. The pipeline catches it at the chunk it happened
