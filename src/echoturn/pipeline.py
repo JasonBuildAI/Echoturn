@@ -26,6 +26,11 @@ invariants:
    before it is emitted, or a client would mark the turn complete while the last
    sentence is still arriving.
 
+A third one is about the reply a person ends up with rather than the order it
+arrives in: a chunk that produced no sound is sent to synthesis once more, and a
+message that is still silent afterwards is named in ``done.unspoken``. Text that
+cannot be heard is the one failure a client cannot detect for itself.
+
 Cancellation has three exits - the caller's ``cancel`` flag, the consumer closing
 the generator, and a failure - and all of them discard work that has not started,
 within one poll interval of 200 ms.
@@ -201,6 +206,12 @@ class TurnInput:
     passed in rather than read from a store because the pipeline has no opinion
     about where a conversation lives - and, more to the point, because a
     transcript that is only ever read cannot be mistaken for the memory of one.
+
+    ``client_timings`` is what the caller measured on its own side of the
+    request. The one figure this package reads is ``asr_verdict_ms`` - how long
+    the recogniser took after the person stopped speaking - because that wait is
+    the part of the delay this server cannot see. Anything else in there is the
+    host's business and is carried through untouched.
     """
 
     text: str
@@ -210,6 +221,7 @@ class TurnInput:
     history: Sequence[Mapping[str, str]] = ()
     quote: Mapping[str, str] | None = None
     message_id: str = ""
+    client_timings: Mapping[str, Any] | None = None
 
 
 @dataclass
@@ -253,6 +265,9 @@ class TurnRunner:
         self.stopping = threading.Event()
         self.futures: list[Future] = []
         self.chunk_message: dict[int, int] = {}
+        # Which chunks have actually produced sound. It exists for the one retry
+        # a silent chunk gets, and it is what ``done.unspoken`` is computed from.
+        self.spoken: set[int] = set()
         self.raw: list[str] = []
         self.warnings: list[str] = []
         self.failed = False
@@ -316,6 +331,19 @@ class TurnRunner:
         if self.first_audio_ms is None:
             self.first_audio_ms = self.elapsed_ms()
         self.queue.put(audio(idx, self.chunk_message.get(idx, 0), data))
+
+    def _piece(self, idx: int, data: bytes) -> None:
+        """One piece from synthesis, on its way to the ordering queue.
+
+        An empty piece is not sound. Counting it as sound would make a chunk that
+        produced nothing look spoken, and the turn would then report a sentence
+        as said when a client has nothing to play for it - which is the exact
+        difference between a bubble that can be heard and one that cannot.
+        """
+        if not data:
+            return
+        self.spoken.add(idx)
+        self.order.piece(idx, data)
 
     # -------------------------------------------------------------- the worker
 
@@ -398,24 +426,51 @@ class TurnRunner:
             self.pool = synthesis_pool()
         self.futures.append(self.pool.submit(self._synthesise, idx, prepared))
 
+    def _speak(self, idx: int, text: str) -> None:
+        """One synthesis request, whose pieces are handed to the ordering queue."""
+        self.deps.tts.synth_stream(
+            text,
+            emotion=self.deps.emotion,
+            voice=self.deps.voice,
+            chunk_cb=lambda piece: self._piece(idx, piece),
+        )
+
     def _synthesise(self, idx: int, text: str) -> None:
-        """Synthesise one chunk and hand its audio to the ordering queue.
+        """Synthesise one chunk, with one more attempt when it produced nothing.
 
         Both success and failure end with ``finish``: a chunk that failed must
         still release the ones behind it, or one provider error would silence the
         rest of the reply.
+
+        The retry exists because the commonest failure here is a rate limit or a
+        connection that dropped, and a sentence missing from the middle of a
+        reply is far more noticeable than one extra request. It is bounded to
+        one attempt, and a chunk that got *some* audio out is never retried: half
+        of it has already been heard, and a retry would say the beginning twice.
+        A chunk that stays silent after both attempts is reported - see
+        :meth:`unspoken` and the warning appended here.
+
+        The second attempt happens before ``finish``, so the ordering cursor is
+        not advanced past a chunk that is still being tried. Retrying with the
+        same ``idx`` after that release would be audio for a position playback
+        has already left behind.
         """
         if self.stopping_wanted():
             self.order.finish(idx)
             return
         try:
-            self.deps.tts.synth_stream(
-                text,
-                emotion=self.deps.emotion,
-                voice=self.deps.voice,
-                chunk_cb=lambda piece: self.order.piece(idx, piece),
-            )
-        except Exception as exc:  # noqa: BLE001 - one bad chunk is not a bad turn
+            try:
+                self._speak(idx, text)
+                return
+            except Exception as exc:  # noqa: BLE001 - one bad chunk is not a bad turn
+                # No second attempt once something has been heard, and none
+                # either once the turn has been thrown away: nobody is listening
+                # to the rest of it, so the request would be paid for by nobody.
+                if idx in self.spoken or self.stopping_wanted():
+                    raise
+                log.info("chunk %d produced no audio, trying once more: %s", idx, exc)
+            self._speak(idx, text)
+        except Exception as exc:  # noqa: BLE001 - the warning is the whole answer
             log.warning("chunk %d could not be synthesised: %s", idx, exc)
             self.warnings.append(f"chunk {idx}: {type(exc).__name__}")
         finally:
@@ -423,18 +478,86 @@ class TurnRunner:
 
     # ------------------------------------------------------------- the terminal
 
+    def unspoken(self) -> list[int]:
+        """The messages of this turn that produced no audio at all.
+
+        A message is one bubble in every client this package has seen, and a
+        bubble with no sound is the worst of both worlds: it looks like something
+        to play and plays nothing. Naming them is all the pipeline can do - what
+        to show instead is a product decision - so ``done`` carries this list and
+        a host that wants text for those messages has what it needs.
+
+        A message with *some* audio is not here: it is mostly heard, and the
+        chunk that failed is reported in ``warnings``. Nor is a text-only turn,
+        where nothing was ever meant to be spoken.
+        """
+        if not self.speaking:
+            return []
+        heard = {
+            self.chunk_message[idx]
+            for idx in self.spoken
+            if idx in self.chunk_message
+        }
+        return sorted(set(self.chunk_message.values()) - heard)
+
+    def client_ms(self, name: str) -> int | None:
+        """A millisecond figure the caller measured, if it sent a usable one.
+
+        Refused rather than coerced when it is not a number: a host that sends
+        ``"1200"`` or ``true`` is reporting a measurement whose meaning nobody
+        agreed on, and a turn's timings are read as facts.
+        """
+        raw = (self.turn.client_timings or {}).get(name)
+        if isinstance(raw, bool) or not isinstance(raw, (int, float)):
+            return None
+        value = int(raw)
+        return value if value >= 0 else None
+
+    def timings(self) -> dict:
+        """What this turn measured, and the gaps a person actually waits on.
+
+        Every figure this server can see starts when the turn arrived, which is
+        *after* the recognition that came before it. A caller that measured that
+        part hands it over as ``client_timings.asr_verdict_ms``, and the three
+        derived numbers exist because that is the only way to express the wait a
+        listener judges: stop speaking, then hear something.
+
+        ``asr_to_first_token_ms`` equals ``first_token_ms`` by construction - the
+        server's clock starts on the far side of the recogniser - and is named
+        anyway so that a caller reading the three gaps does not have to know that.
+        """
+        first_token = self.first_token_ms
+        first_audio = self.first_audio_ms
+        asr = self.client_ms("asr_verdict_ms")
+        return {
+            "first_token_ms": first_token,
+            "first_audio_ms": first_audio,
+            "asr_verdict_ms": asr,
+            "asr_to_first_token_ms": (
+                first_token if asr is not None and first_token is not None else None
+            ),
+            "first_token_to_first_audio_ms": (
+                max(0, first_audio - first_token)
+                if first_audio is not None and first_token is not None
+                else None
+            ),
+            "total_first_audio_ms": (
+                asr + first_audio
+                if asr is not None and first_audio is not None
+                else None
+            ),
+            "total_ms": self.elapsed_ms(),
+            "chunks": len(self.chunk_message),
+        }
+
     def _finish(self) -> dict:
         """The ``done`` event: the whole reply, and what the turn measured."""
         reply = clean_reply("".join(self.raw), self.style)
         return done(
             reply,
-            timings={
-                "first_token_ms": self.first_token_ms,
-                "first_audio_ms": self.first_audio_ms,
-                "total_ms": self.elapsed_ms(),
-                "chunks": len(self.chunk_message),
-            },
+            timings=self.timings(),
             warnings=self.warnings,
+            unspoken=self.unspoken(),
             extra={"input_kind": self.turn.input_kind},
         )
 

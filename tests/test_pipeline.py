@@ -6,7 +6,14 @@ import pytest
 
 from echoturn.errors import ProviderError
 from echoturn.pipeline import TurnDeps, TurnInput, policy_from_dials, run_turn
-from pipeline_helpers import BrokenLLM, FakeLLM, FakeTTS, SilentTTS
+from pipeline_helpers import (
+    AbandonedTTS,
+    BrokenLLM,
+    FakeLLM,
+    FakeTTS,
+    HalfSpeakingTTS,
+    SilentTTS,
+)
 
 # One sentence each, and long enough that the shipped thresholds send each of
 # them as a chunk of its own: a test should not depend on where the chunker
@@ -197,6 +204,7 @@ def test_an_unexpected_failure_does_not_leak_its_text(pool):
 
 
 def test_one_chunk_that_fails_to_speak_does_not_silence_the_rest(pool):
+    """A failure that does not repeat: the chunk is sent again and is heard."""
     tts = FakeTTS(fail_on=[0])
     events = collect(
         TurnInput("hello"),
@@ -205,9 +213,162 @@ def test_one_chunk_that_fails_to_speak_does_not_silence_the_rest(pool):
     )
     final = events[-1]
     assert final["type"] == "done"
+    assert audio_indices(events) == [0, 1]
+    assert final["warnings"] == []
+    assert final["unspoken"] == []
+    assert final["reply"] == SENTENCE_A + SENTENCE_B
+    # Two chunks, one of them sent twice: the retry is bounded to one attempt.
+    assert tts.streamed == 3
+
+
+def test_a_chunk_that_never_speaks_is_reported_without_taking_the_turn_down(pool):
+    tts = FakeTTS(fail_all=True)
+    events = collect(
+        TurnInput("hello"),
+        deps_for(FakeLLM([SENTENCE_A, SENTENCE_B]), tts, pool),
+        pool=pool,
+    )
+    final = events[-1]
+    assert final["type"] == "done"
+    assert audio_indices(events) == []
+    assert final["warnings"] == ["chunk 0: RuntimeError", "chunk 1: RuntimeError"]
+    assert final["unspoken"] == [0], "the whole message has no sound"
+    assert final["reply"] == SENTENCE_A + SENTENCE_B, "the text is still there to read"
+    assert tts.streamed == 4, "each chunk is tried exactly twice"
+
+
+def test_only_the_message_with_no_sound_is_named(pool):
+    """Two messages: the first never speaks, the second does.
+
+    The list is per message rather than per chunk on purpose - it answers "which
+    bubble can this person not play" - and a message with some of its audio is a
+    bubble that plays.
+
+    The failure is named by text rather than by call: the retry for one chunk
+    runs alongside the other chunk's first attempt, so "the third call failed"
+    says nothing about which message went silent.
+    """
+    tts = FakeTTS(fail_containing="第一句话")
+    events = collect(
+        TurnInput("hello"),
+        deps_for(FakeLLM([SENTENCE_A + "\n\n" + SENTENCE_B]), tts, pool),
+        pool=pool,
+    )
+    final = events[-1]
+    assert final["type"] == "done"
     assert audio_indices(events) == [1]
     assert final["warnings"] == ["chunk 0: RuntimeError"]
-    assert final["reply"] == SENTENCE_A + SENTENCE_B
+    assert final["unspoken"] == [0]
+    assert SENTENCE_A in final["reply"] and SENTENCE_B in final["reply"]
+
+
+def test_a_chunk_that_broke_after_some_audio_is_not_said_twice(pool):
+    """Half a sentence is already out; re-synthesising it would repeat it."""
+    tts = HalfSpeakingTTS()
+    events = collect(
+        TurnInput("hello"),
+        deps_for(FakeLLM([SENTENCE_A]), tts, pool),
+        pool=pool,
+    )
+    final = events[-1]
+    assert final["type"] == "done"
+    assert tts.calls == 1, "no retry once something has been heard"
+    assert audio_indices(events) == [0]
+    assert final["warnings"] == ["chunk 0: RuntimeError"]
+    assert final["unspoken"] == [], "the message did make a sound"
+
+
+def test_a_turn_that_was_given_up_on_does_not_pay_for_a_second_attempt(pool):
+    """The retry is for a listener who is still there."""
+    cancel = threading.Event()
+    tts = AbandonedTTS(cancel)
+    events = collect(
+        TurnInput("hello"),
+        deps_for(FakeLLM([SENTENCE_A, SENTENCE_B]), tts, pool),
+        cancel=cancel,
+        pool=pool,
+    )
+    assert tts.calls == 1, "a chunk that failed after the client left is not retried"
+    assert audio_indices(events) == []
+    # Whether the cancel is noticed before or after the last event is a race
+    # between the worker and the poll; either ending is this turn, and neither
+    # of them paid for a second attempt.
+    assert events[-1]["type"] in ("aborted", "done")
+
+
+def test_a_text_turn_never_names_a_silent_message(pool):
+    """A turn with no voice was never meant to make a sound."""
+    events = collect(
+        TurnInput("hello"),
+        deps_for(FakeLLM([SENTENCE_A, SENTENCE_B]), None, pool),
+        pool=pool,
+    )
+    final = events[-1]
+    assert final["unspoken"] == []
+    assert final["warnings"] == []
+    assert audio_indices(events) == []
+
+
+def test_the_turn_reports_what_the_caller_measured_before_it_arrived(pool):
+    """The recogniser runs on the caller's clock; only the caller can time it.
+
+    Without this the turn reports the part of the wait that happens on this side
+    of the request and nothing about the part a person actually notices: the
+    recogniser thinking after they stopped talking.
+    """
+    events = collect(
+        TurnInput("hello", client_timings={"asr_verdict_ms": 620}),
+        deps_for(FakeLLM([SENTENCE_A]), FakeTTS(), pool),
+        pool=pool,
+    )
+    timings = events[-1]["timings"]
+    assert timings["asr_verdict_ms"] == 620
+    assert timings["asr_to_first_token_ms"] == timings["first_token_ms"]
+    assert timings["total_first_audio_ms"] == 620 + timings["first_audio_ms"]
+    assert timings["first_token_to_first_audio_ms"] == (
+        timings["first_audio_ms"] - timings["first_token_ms"]
+    )
+
+
+def test_a_measurement_that_is_not_a_number_is_dropped_rather_than_guessed(pool):
+    """Timings are read as facts, so a truthy string is not a measurement."""
+    events = collect(
+        TurnInput(
+            "hello",
+            client_timings={"asr_verdict_ms": "620", "also": True},
+        ),
+        deps_for(FakeLLM([SENTENCE_A]), FakeTTS(), pool),
+        pool=pool,
+    )
+    timings = events[-1]["timings"]
+    assert timings["asr_verdict_ms"] is None
+    assert timings["asr_to_first_token_ms"] is None
+    assert timings["total_first_audio_ms"] is None
+
+
+def test_a_text_turn_reports_no_part_of_a_wait_it_never_had(pool):
+    """Every derived gap is null, and the plain measurements are what they are."""
+    events = collect(
+        TurnInput("hello"),
+        deps_for(FakeLLM([SENTENCE_A]), None, pool),
+        pool=pool,
+    )
+    timings = events[-1]["timings"]
+    assert timings["asr_verdict_ms"] is None
+    assert timings["total_first_audio_ms"] is None
+    assert timings["first_audio_ms"] is None
+    assert timings["first_token_to_first_audio_ms"] is None
+    assert timings["total_ms"] >= 0
+
+
+def test_a_negative_measurement_is_refused(pool):
+    """A gap that runs backwards is a broken clock, not a fast answer."""
+    events = collect(
+        TurnInput("hello", client_timings={"asr_verdict_ms": -5}),
+        deps_for(FakeLLM([SENTENCE_A]), FakeTTS(), pool),
+        pool=pool,
+    )
+    assert events[-1]["timings"]["asr_verdict_ms"] is None
 
 
 def test_a_provider_that_returns_no_audio_is_not_a_failure(pool):

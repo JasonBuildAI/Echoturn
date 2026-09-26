@@ -35,13 +35,20 @@ def test_done_always_has_a_place_for_timings_and_warnings():
     event = events.done("hello")
     assert event["timings"] == {}
     assert event["warnings"] == []
+    assert event["unspoken"] == []
     assert "extra" not in event
 
 
 def test_done_keeps_host_fields_out_of_the_contract():
     event = events.done("hello", extra={"topic": 3})
     assert event["extra"] == {"topic": 3}
-    assert set(event) == {"type", "reply", "timings", "warnings", "extra"}
+    assert set(event) == {"type", "reply", "timings", "warnings", "unspoken", "extra"}
+
+
+def test_unspoken_messages_are_indices_even_when_they_arrive_as_strings():
+    """The list is read as message indices, so a round trip must not break it."""
+    event = events.done("hello", unspoken=["0", 2])
+    assert event["unspoken"] == [0, 2]
 
 
 def test_three_endings_are_terminal_and_nothing_else_is():

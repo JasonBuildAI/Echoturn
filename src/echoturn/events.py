@@ -29,7 +29,8 @@ written against exactly these keys:
 ``aborted``
     The turn was cancelled or replaced. Terminal.
 ``done``
-    The whole reply as text, plus what the turn measured. Terminal.
+    The whole reply as text, plus what the turn measured, plus the messages that
+    produced no audio at all. Terminal.
 ``error``
     The turn failed. ``error`` is safe to show to a person; the exception text is
     not, and belongs in the host's log. Terminal.
@@ -116,6 +117,7 @@ def done(
     *,
     timings: Mapping[str, Any] | None = None,
     warnings: Sequence[str] = (),
+    unspoken: Sequence[int] = (),
     extra: Mapping[str, Any] | None = None,
 ) -> dict:
     """The finished turn: the text, what it cost in time, and what went wrong.
@@ -124,12 +126,18 @@ def done(
     ``error`` events. It is for the parts that worked badly, above all a chunk of
     speech that failed to synthesise: the text of that sentence is still here and
     can still be read, and the caller deserves to know it was never spoken.
+
+    ``unspoken`` is the same failure one level up: the messages whose text never
+    made a sound at all. A client that shows a voice message it cannot play has
+    shown the user the wrong thing twice over, so these are named rather than
+    left to be inferred from which ``audio`` events arrived.
     """
     event: dict = {
         "type": "done",
         "reply": str(reply),
         "timings": dict(timings or {}),
         "warnings": [str(item) for item in warnings],
+        "unspoken": [int(index) for index in unspoken],
     }
     if extra:
         # Host fields the pipeline does not interpret, kept in one place so they
