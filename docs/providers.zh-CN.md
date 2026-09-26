@@ -107,7 +107,7 @@ unknown LLM provider 'gpt4' (set ECHOTURN_LLM_PROVIDER, or pass the name directl
 改成回落到 mock 会把配置文件里的一个错字变成「看起来能用、用蜂鸣音说话、永远不会去联系
 它本该联系的那个供应商」的系统。只有在什么都没要求的时候，默认值才是 mock。
 
-## 超时
+## 超时与连接池
 
 每个 HTTP 请求带自己的超时，因为一个统一默认值必须同时做到「对识别足够短」和「对合成足够
 长」，结果必然对其中一个不合适。
@@ -118,6 +118,13 @@ unknown LLM provider 'gpt4' (set ECHOTURN_LLM_PROVIDER, or pass the name directl
 | `ECHOTURN_TTS_TIMEOUT` | `120.0` | 一次合成请求 |
 | `ECHOTURN_ASR_TIMEOUT` | `60.0` | 一次识别 |
 | `ECHOTURN_HTTP_POOL_SIZE` | `32` | 进程级保持的连接数 |
+| `ECHOTURN_HTTP_KEEPALIVE_EXPIRY` | `60.0` | 空闲连接保持多久 |
+
+最后一条不是请求超时，而是一条连接在池子里**空闲**多久才被丢掉。httpx 自己的默认是 5 秒，
+比一场对话里的安静间隔要短 —— 一条回复要先被生成、播出来、再被听完，下一个请求才发出去 ——
+所以 5 秒意味着那个请求要在关键路径上重新做一次 TCP + TLS 握手，而这正是共享客户端存在的
+理由。60 秒覆盖一场通话真实会有的间隔；如果你的网络环境不能接受把 socket 留这么久，就把它
+调小。
 
 ## 失败
 

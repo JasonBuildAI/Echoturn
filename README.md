@@ -140,6 +140,7 @@ it are the ones in the code, and a test fails when they drift apart.
 | `ECHOTURN_TTS_VOICE` | `alloy` | voice name |
 | `ECHOTURN_MODEL_DIR` | `models` | where the optional ONNX models are looked for |
 | `ECHOTURN_HTTP_POOL_SIZE` | `32` | connections kept open for the API calls |
+| `ECHOTURN_HTTP_KEEPALIVE_EXPIRY` | `60.0` | seconds an idle connection stays open |
 | `ECHOTURN_VAD_ENGINE` | `silero` | `silero` (model) or `energy` (level only) |
 | `ECHOTURN_IDLE_SPLIT_SEC` | `600` | a quiet gap this long reopens the context |
 

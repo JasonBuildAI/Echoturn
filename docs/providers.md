@@ -118,11 +118,11 @@ Falling back to the mock instead would turn a typo in a config file into a
 system that looks like it works, talks in beeps, and never contacts the provider
 it was configured for. The default is the mock only when nothing was asked for.
 
-## Timeouts
+## Timeouts and the connection pool
 
-Every HTTP request carries its own, because one default would have to be short
-enough for recognition and long enough for synthesis and would be wrong for one
-of them.
+Every HTTP request carries its own timeout, because one default would have to be
+short enough for recognition and long enough for synthesis and would be wrong
+for one of them.
 
 | setting | default | for |
 |---|---|---|
@@ -130,6 +130,15 @@ of them.
 | `ECHOTURN_TTS_TIMEOUT` | `120.0` | one synthesis request |
 | `ECHOTURN_ASR_TIMEOUT` | `60.0` | one recognition |
 | `ECHOTURN_HTTP_POOL_SIZE` | `32` | connections kept open, process-wide |
+| `ECHOTURN_HTTP_KEEPALIVE_EXPIRY` | `60.0` | how long an idle one stays open |
+
+The last one is not a request timeout: it is how long a connection sits idle in
+the pool before it is dropped. httpx's own default is 5 seconds, which is
+shorter than the quiet gaps a conversation has - a reply is generated, spoken
+and listened to before the next request goes out - so 5 seconds means that
+request pays for a TCP and TLS handshake on the critical path, which is the cost
+the shared client exists to avoid. Sixty seconds covers the gaps a call actually
+has; lower it if holding sockets that long is not acceptable on your network.
 
 ## Failures
 

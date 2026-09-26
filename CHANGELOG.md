@@ -46,6 +46,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+* API connections are kept open for 60 seconds of idle time instead of httpx's
+  own 5 (`ECHOTURN_HTTP_KEEPALIVE_EXPIRY`). A conversation has quiet gaps in it
+  - a reply is generated, spoken and listened to before the next request - and a
+  connection that expired during one is a TCP and TLS handshake paid on the next
+  reply's critical path.
 * The call first-chunk thresholds are 3/2 (were 5/4, and 4/3 in between): a
   spoken turn usually opens with a whole short sentence, and two runs of each on
   the reference setup put the first sound a median 0.12 s earlier at 3/2. The

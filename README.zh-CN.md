@@ -122,6 +122,7 @@ echoturn-fetch-models --check   # 把已装上的加载起来跑一次
 | `ECHOTURN_TTS_VOICE` | `alloy` | 音色名 |
 | `ECHOTURN_MODEL_DIR` | `models` | 可选 ONNX 模型放在哪 |
 | `ECHOTURN_HTTP_POOL_SIZE` | `32` | 保持的连接数 |
+| `ECHOTURN_HTTP_KEEPALIVE_EXPIRY` | `60.0` | 空闲连接保持多少秒 |
 | `ECHOTURN_VAD_ENGINE` | `silero` | `silero`（模型）或 `energy`（只看音量） |
 | `ECHOTURN_IDLE_SPLIT_SEC` | `600` | 静默超过这么久就重开上下文 |
 
