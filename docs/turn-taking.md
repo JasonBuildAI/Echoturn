@@ -33,7 +33,10 @@ and only the first is fast:
 The candidate pause is `ECHOTURN_SPECULATE_MS` (300 ms). The fallback is
 `ECHOTURN_VAD_END_MS` (600 ms), or `ECHOTURN_VAD_END_CALL_MS` (700 ms) inside a
 call, where a pause in the middle of a thought is shorter than it looks on a
-keyboard.
+keyboard. A call reaches the candidate pause sooner as well
+(`ECHOTURN_SPECULATE_CALL_MS`, 180 ms): there the wait before the recogniser is
+asked is part of the turn rather than a shortcut around it, and the deadline it
+races is the later one.
 
 A pause is asked about **once**. Asking again on the same pause is asking the
 same question about the same audio, and each ask is a transcription. Speech

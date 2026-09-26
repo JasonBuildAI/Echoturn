@@ -28,6 +28,7 @@ dials()["vad_end_ms"]        # 现读
 | `ECHOTURN_MIN_SPEECH_MS` | `min_speech_ms` | `300` | 低于它就算没说成一句话 |
 | `ECHOTURN_REOPEN_MS` | `reopen_ms` | `800` | 判成「没说完」之后等多久 |
 | `ECHOTURN_SPECULATE_MS` | `speculate_ms` | `300` | 多长的静音就把识别提前启动 |
+| `ECHOTURN_SPECULATE_CALL_MS` | `speculate_call_ms` | `180` | 同上，通话中 |
 | `ECHOTURN_BARGE_MS` | `barge_ms` | `700` | 一次打断要持续多久 |
 | `ECHOTURN_BARGE_FLOOR` | `barge_floor` | `0.10` | 低于这个音量什么都不算打断 |
 | `ECHOTURN_BARGE_RATIO` | `barge_ratio` | `3.5` | 比回声高多少倍才算人声 |
@@ -35,8 +36,8 @@ dials()["vad_end_ms"]        # 现读
 | `ECHOTURN_TTS_FIRST_MIN` | `tts_first_min` | `5` | 值得为它花一次请求的最短文本 |
 | `ECHOTURN_TTS_CHUNK_CHARS` | `tts_chunk_chars` | `36` | 第一片之后每片多少字符 |
 | `ECHOTURN_TTS_CHUNK_MIN` | `tts_chunk_min` | `16` | 后续每片的最短长度 |
-| `ECHOTURN_TTS_FIRST_CALL_CHARS` | `tts_first_call_chars` | `5` | 通话中的第一片 |
-| `ECHOTURN_TTS_FIRST_CALL_MIN` | `tts_first_call_min` | `4` | 通话中第一片的最短长度 |
+| `ECHOTURN_TTS_FIRST_CALL_CHARS` | `tts_first_call_chars` | `3` | 通话中的第一片 |
+| `ECHOTURN_TTS_FIRST_CALL_MIN` | `tts_first_call_min` | `2` | 通话中第一片的最短长度 |
 | `ECHOTURN_TTS_POOL_SIZE` | `tts_pool_size` | `32` | 进程级在飞的合成请求数 |
 | `ECHOTURN_IDLE_SPLIT_SEC` | `idle_split_sec` | `600` | 静默这么久就重开上下文 |
 
@@ -61,10 +62,13 @@ dials()["vad_end_ms"]        # 现读
 **判成「没说完」之后再等 800 ms。** 早一点结束是更小的错误：「没说完」判错，会让人对着一个
 看着坏掉的东西说话；而「说完了」判错，他直接开口盖过去就行。
 
-**300 ms 就把识别启动。** 等这一轮真的结束时，文本已经在路上了 —— 快速回复主要就靠这个。
-它必须小于结束点，否则这一轮在「提前启动」变得有用之前就已经结束了。
+**300 ms 就把识别启动，通话里是 180 ms。** 等这一轮真的结束时，文本已经在路上了 ——
+快速回复主要就靠这个。它必须小于结束点，否则这一轮在「提前启动」变得有用之前就已经
+结束了。通话中这个值更低：那里的一次探测是这一轮本身的动作，而不是绕开等待的捷径，
+而它要赶的那个结束点也更晚（700 ms）。
 
 关于 `speculate_ms` 与 `vad_end_ms` 这对参数，最要紧的一件事：**前者必须小于后者。**
+打字与通话各有一对，这句话对两对都成立。
 
 ### 打断
 
@@ -84,8 +88,10 @@ dials()["vad_end_ms"]        # 现读
 自己的语调；而等更多文本进来，代价就是首声延迟。
 
 **第一片有它自己小得多的阈值** —— 7 个字符对 36 个 —— 因为听者判断快慢几乎全看第一声。
-通话中还要更小（5），因为一轮语音通常只有一两句，而一个很短的首片造成的接缝，在电话里没人
-会注意到。
+通话中还要更小（3，下限 2），因为一轮语音通常只有一两句，而一个很短的首片造成的接缝，在
+电话里没人会注意到。它在 2026-09-25 之前是 4/3：两版各跑两遍，3/2 的首声中位数快 0.12 s。
+代价是首片可能短到听起来有点「蹦」，所以在你自己那套环境上值得重新量一遍：量不出这个差，
+就该回到 4/3。
 
 那些 `_MIN` 值是各自的下限：比它短的片不值得花一次请求，于是攒句器继续攒。
 

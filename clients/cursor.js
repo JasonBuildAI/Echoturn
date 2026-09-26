@@ -70,9 +70,14 @@ export class SilenceCursor {
     return this.dials.endMs({ inCall: this.inCall });
   }
 
+  /** How much silence makes the pause worth asking about, in this mode. */
+  get probeMs() {
+    return this.dials.probeMs({ inCall: this.inCall });
+  }
+
   /** Whether the recording has been quiet long enough to send. */
   ready() {
-    if (this.verdict === true) return this.silenceMs >= this.dials.number("speculate_ms");
+    if (this.verdict === true) return this.silenceMs >= this.probeMs;
     if (this.verdict === null) return this.silenceMs > this.endMs;
     return this.silenceMs > this.endMs && this.reopenMs >= this.dials.number("reopen_ms");
   }
@@ -143,7 +148,7 @@ export class SilenceCursor {
       this.verdict !== true &&
       this.hasVoice &&
       this.enough() &&
-      this.silenceMs >= this.dials.number("speculate_ms")
+      this.silenceMs >= this.probeMs
     ) {
       this.asked = true;
       return PROBE;

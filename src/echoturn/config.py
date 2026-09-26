@@ -174,6 +174,12 @@ DIALS: tuple[Dial, ...] = (
     # Start recognising at this silence, before the turn has ended, so the text is
     # already on its way when the turn does end. Must stay below the end point.
     Dial(ENV_PREFIX + "SPECULATE_MS", "speculate_ms", "int", 300),
+    # The same inside a call, where the wait before the recogniser is asked is
+    # part of the turn itself rather than a shortcut around it, so it comes
+    # sooner: 180 ms since a 2026-09-22 measurement, against the 300 ms a typed
+    # message waits. Still well below the call silence deadline - a probe that
+    # comes after the deadline measures a turn that has already ended.
+    Dial(ENV_PREFIX + "SPECULATE_CALL_MS", "speculate_call_ms", "int", 180),
     # Barge-in: how loud, and for how long, speech has to be before it counts as
     # the listener interrupting. The test is max(floor, echo * ratio) sustained
     # for the given time - an absolute floor so keyboard and breathing never
@@ -193,8 +199,14 @@ DIALS: tuple[Dial, ...] = (
     Dial(ENV_PREFIX + "TTS_FIRST_MIN", "tts_first_min", "int", 5),
     Dial(ENV_PREFIX + "TTS_CHUNK_CHARS", "tts_chunk_chars", "int", 36),
     Dial(ENV_PREFIX + "TTS_CHUNK_MIN", "tts_chunk_min", "int", 16),
-    Dial(ENV_PREFIX + "TTS_FIRST_CALL_CHARS", "tts_first_call_chars", "int", 5),
-    Dial(ENV_PREFIX + "TTS_FIRST_CALL_MIN", "tts_first_call_min", "int", 4),
+    # Inside a call the first sound is nearly the whole of how fast a reply feels,
+    # and a spoken turn usually opens with a short whole sentence ("Mm."). These
+    # were 5/4 and then 4/3 before being measured against 3/2 on 2026-09-25: two
+    # runs of each, first-sound median 0.12 s earlier at 3/2. What it costs is a
+    # first chunk that can be short enough to sound clipped, so if a future
+    # measurement does not find that difference, 4/3 is the value to go back to.
+    Dial(ENV_PREFIX + "TTS_FIRST_CALL_CHARS", "tts_first_call_chars", "int", 3),
+    Dial(ENV_PREFIX + "TTS_FIRST_CALL_MIN", "tts_first_call_min", "int", 2),
     # How many synthesis requests may be in flight for the whole process. It is
     # sized for the provider's tolerance of concurrency, not for the number of
     # people talking: a pool per turn would put fifteen hundred threads on the

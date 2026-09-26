@@ -30,6 +30,7 @@ dials()["vad_end_ms"]        # read now
 | `ECHOTURN_MIN_SPEECH_MS` | `min_speech_ms` | `300` | below this, there was no sentence |
 | `ECHOTURN_REOPEN_MS` | `reopen_ms` | `800` | how long to wait after "not finished" |
 | `ECHOTURN_SPECULATE_MS` | `speculate_ms` | `300` | the silence that starts a recognition early |
+| `ECHOTURN_SPECULATE_CALL_MS` | `speculate_call_ms` | `180` | the same, inside a call |
 | `ECHOTURN_BARGE_MS` | `barge_ms` | `700` | how long an interruption has to hold |
 | `ECHOTURN_BARGE_FLOOR` | `barge_floor` | `0.10` | the level below which nothing is an interruption |
 | `ECHOTURN_BARGE_RATIO` | `barge_ratio` | `3.5` | how far above the echo a voice has to be |
@@ -37,8 +38,8 @@ dials()["vad_end_ms"]        # read now
 | `ECHOTURN_TTS_FIRST_MIN` | `tts_first_min` | `5` | the shortest text worth spending a request on |
 | `ECHOTURN_TTS_CHUNK_CHARS` | `tts_chunk_chars` | `36` | characters per chunk after the first |
 | `ECHOTURN_TTS_CHUNK_MIN` | `tts_chunk_min` | `16` | the shortest later chunk |
-| `ECHOTURN_TTS_FIRST_CALL_CHARS` | `tts_first_call_chars` | `5` | the first chunk, inside a call |
-| `ECHOTURN_TTS_FIRST_CALL_MIN` | `tts_first_call_min` | `4` | the shortest first chunk, inside a call |
+| `ECHOTURN_TTS_FIRST_CALL_CHARS` | `tts_first_call_chars` | `3` | the first chunk, inside a call |
+| `ECHOTURN_TTS_FIRST_CALL_MIN` | `tts_first_call_min` | `2` | the shortest first chunk, inside a call |
 | `ECHOTURN_TTS_POOL_SIZE` | `tts_pool_size` | `32` | synthesis requests in flight, process-wide |
 | `ECHOTURN_IDLE_SPLIT_SEC` | `idle_split_sec` | `600` | a gap this long reopens the context |
 
@@ -68,13 +69,16 @@ not the length of audio, so a quiet recording with a word in it still passes.
 mistake: a wrong "not finished" leaves somebody talking to something that looks
 broken, while a wrong "finished" is a reply they can simply talk over.
 
-**300 ms to start recognising.** The text is already on its way by the time the
-turn does end, which is most of what makes a quick reply possible. It has to
-stay below the end point, or the turn ends before the speculation was ever
-useful.
+**300 ms to start recognising, 180 ms inside a call.** The text is already on
+its way by the time the turn does end, which is most of what makes a quick reply
+possible. It has to stay below the end point, or the turn ends before the
+speculation was ever useful. The call value is lower because the probe there is
+part of the turn rather than a shortcut around it, and the deadline it races is
+the later one (700 ms).
 
-The single most important thing to know about the pair `speculate_ms` and
-`vad_end_ms`: the first must be smaller than the second.
+The single most important thing to know about each `speculate_ms` /
+`vad_end_ms` pair: the first must be smaller than the second. That is true twice
+over - once for typing and once for a call.
 
 ### Interruption
 
@@ -99,9 +103,12 @@ Waiting for more text costs first-sound latency.
 
 **The first chunk has its own, much smaller threshold** - 7 characters against
 36 - because listeners judge speed almost entirely on the first sound. A call
-gets a smaller one again (5), because a spoken turn is usually one or two
-sentences and the seam a very short first chunk creates is one nobody notices
-over a phone.
+gets a smaller one again (3, with a floor of 2), because a spoken turn is
+usually one or two sentences and the seam a very short first chunk creates is
+one nobody notices over a phone. It was 4/3 before 2026-09-25, when two runs of
+each put the first sound a median 0.12 s earlier at 3/2. The cost is a first
+chunk short enough to sound clipped, so the number is worth re-measuring on your
+own setup: if it does not find that difference, 4/3 is the value to go back to.
 
 The `_MIN` values are the floor under each of those: a chunk shorter than them
 is not worth a request, so the chunker keeps accumulating.

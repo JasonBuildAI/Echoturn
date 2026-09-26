@@ -35,6 +35,14 @@ test("a call waits longer than a typed message", () => {
   assert.equal(dials.endMs({ inCall: true }), 700);
 });
 
+test("a call asks sooner than a typed message", () => {
+  // The probe is part of the turn inside a call rather than a shortcut around
+  // it, so the candidate pause is smaller there while the deadline is later.
+  const dials = new Dials();
+  assert.equal(dials.probeMs(), 300);
+  assert.equal(dials.probeMs({ inCall: true }), 180);
+});
+
 test("text falls back when it is empty or the wrong kind", () => {
   assert.equal(new Dials({ lang: "" }).text("lang"), "auto");
   assert.equal(new Dials({ lang: "en" }).text("lang"), "en");

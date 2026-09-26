@@ -15,6 +15,7 @@ export const FALLBACK = Object.freeze({
   sample_rate: 16000,
   lang: "auto",
   speculate_ms: 300,
+  speculate_call_ms: 180,
   vad_end_ms: 600,
   vad_end_call_ms: 700,
   min_speech_ms: 300,
@@ -68,6 +69,17 @@ export class Dials {
    */
   endMs({ inCall = false } = {}) {
     return this.number(inCall ? "vad_end_call_ms" : "vad_end_ms");
+  }
+
+  /**
+   * How much silence makes the pause worth asking about.
+   *
+   * Sooner inside a call, where the wait before the recogniser is asked is part
+   * of the turn itself rather than a shortcut around it - and where the deadline
+   * it is racing is the later one (see `endMs`).
+   */
+  probeMs({ inCall = false } = {}) {
+    return this.number(inCall ? "speculate_call_ms" : "speculate_ms");
   }
 
   /**

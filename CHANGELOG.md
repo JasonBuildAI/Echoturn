@@ -8,6 +8,10 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+* `ECHOTURN_SPECULATE_CALL_MS` (`speculate_call_ms`, 180 ms): the candidate
+  pause that asks the service whether a sentence is finished, for a call. The
+  browser client reads it through `Dials.probeMs({ inCall })`, so a call asks
+  180 ms into a pause while a typed message still asks at 300 ms.
 * A positioning guide in both languages (`docs/positioning.md` and its Chinese
   counterpart): what the library is genuinely better at, what it deliberately
   does not do, an honest comparison with the larger voice stacks (with the date
@@ -42,6 +46,12 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+* The call first-chunk thresholds are 3/2 (were 5/4, and 4/3 in between): a
+  spoken turn usually opens with a whole short sentence, and two runs of each on
+  the reference setup put the first sound a median 0.12 s earlier at 3/2. The
+  cost is a first chunk short enough to sound clipped, so `docs/tuning.md`
+  records the measurement and the values to go back to if your own run does not
+  find it.
 * A failing suite on CI names the tests that failed as annotations on the run,
   because the raw log is served behind a GitHub sign-in and a bare red cross is
   not a report.

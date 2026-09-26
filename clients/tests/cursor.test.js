@@ -86,6 +86,18 @@ test("a call waits longer than a typed message before falling back", () => {
   assert.equal(decisions[decisions.length - 1].at, 720);
 });
 
+test("a call asks the service sooner than a typed message does", () => {
+  // Both halves of the call pair move: the candidate pause comes earlier and
+  // the deadline it races comes later, so the probe still lands before it.
+  const c = new SilenceCursor({ dials: new Dials(), inCall: true });
+  speak(c, 400);
+  const decisions = stayQuiet(c, 1200);
+  assert.deepEqual(decisions, [
+    { decision: PROBE, at: 180 },
+    { decision: SEND, at: 720 },
+  ]);
+});
+
 test("a sound too short to be a sentence is thrown away, not sent", () => {
   // Sent, it reaches a recogniser, and a recogniser asked about a cough invents
   // a word rather than reporting that it heard nothing.

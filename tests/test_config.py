@@ -106,11 +106,14 @@ def test_the_shipped_thresholds_are_the_measured_ones():
     assert values["min_speech_ms"] == 300
     assert values["reopen_ms"] == 800
     assert values["speculate_ms"] == 300
+    assert values["speculate_call_ms"] == 180
     assert values["barge_ms"] == 700
     assert values["barge_floor"] == 0.10
     assert values["barge_ratio"] == 3.5
     assert values["tts_first_chars"] == 7
     assert values["tts_chunk_chars"] == 36
+    assert values["tts_first_call_chars"] == 3
+    assert values["tts_first_call_min"] == 2
 
 
 def test_the_language_default_lets_the_recogniser_decide():
