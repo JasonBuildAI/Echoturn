@@ -109,7 +109,10 @@ is for a chunk of speech that failed to synthesise: the text is still in
 spoken. The format is `"chunk 3: ProviderError"`.
 
 `first_token_ms` and `first_audio_ms` are `None` when they never happened, which
-is the honest answer for a text-only turn.
+is the honest answer for a text-only turn. Every number here is measured from the
+same origin - the moment the host handed this turn over - so the gap between any
+two of them is arithmetic rather than another field. The speech recognition that
+came before that moment runs on the host's clock, and is not reported here.
 
 ### `error`
 
