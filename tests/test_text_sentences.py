@@ -58,6 +58,42 @@ def test_text_after_a_closing_fence_is_not_swallowed():
     assert list(iter_sentences(["```{\"a\": 1}```顺手说一句。"])) == ["顺手说一句。"]
 
 
+def test_a_data_object_is_never_spoken():
+    """The bubble and the voice are one judgement: what is data is not said."""
+    chunks = ["好呀。", '{"mood": "warm"}', "然后呢。"]
+    assert list(iter_sentences(chunks)) == ["好呀。", "然后呢。"]
+
+
+def test_a_data_object_is_never_spoken_however_the_stream_is_cut():
+    """Every grain of the stream has to give the same answer.
+
+    The object holds a question mark of its own; punctuation inside it is not the
+    end of a sentence, and the pieces on either side still come out in order.
+    """
+    text = '好。{"mood": "真的吗？"}后话。'
+    whole = list(iter_sentences([text]))
+    assert whole == list(iter_sentences([text[:6], text[6:]]))
+    assert whole == list(iter_sentences(list(text)))
+    assert whole == ["好。", "后话。"]
+
+
+def test_a_reply_that_is_only_an_object_says_nothing():
+    assert list(iter_sentences(['{"mood": "warm"}'])) == []
+    assert list(iter_sentences(list('{"mood": "warm"}'))) == []
+
+
+def test_an_object_cut_off_mid_write_is_not_spoken():
+    assert list(iter_sentences(['{"mood": "war'])) == []
+    assert list(iter_sentences(['Fine by me.\n{"mood": "war'])) == ["Fine by me."]
+    assert list(iter_sentences(['好呀。{"a": 1', FLUSH])) == ["好呀。"]
+
+
+def test_a_brace_in_prose_is_still_said():
+    """The other direction: a typo must not lose a sentence."""
+    text = "She wrote {not json at all} and left it there。"
+    assert list(iter_sentences([text])) == [text]
+
+
 def test_stage_directions_are_removed_before_speaking():
     assert list(iter_sentences(["（抬头）好呀。"])) == ["好呀。"]
 
@@ -76,6 +112,11 @@ def test_flush_emits_the_buffer_as_a_sentence():
 
 def test_flush_inside_a_fence_emits_nothing():
     assert list(iter_sentences(["```code", FLUSH, "```好。"])) == ["好。"]
+
+
+def test_a_data_object_does_not_shift_the_message_index():
+    out = list(iter_message_sentences(['好呀。\n{"mood": "warm"}\n']))
+    assert out == [(0, "好呀。")]
 
 
 def test_message_index_starts_at_zero():

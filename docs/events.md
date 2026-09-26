@@ -57,6 +57,14 @@ of the reply. Those are different things: a chunk is cut to a character budget
 and may hold two short sentences, and joining the `sentence` events back
 together does not reproduce `done.reply`. `done.reply` is what was said.
 
+Nothing written for a program to read is ever spoken. A fenced block and a JSON
+object are removed before the words reach synthesis, and before they reach a
+bubble; an object is only removed when it really parses as one, and a brace that
+opens a line and never closes is dropped as half a contract. Braces in prose are
+left alone. A reply that is nothing but an object therefore produces no
+`sentence` and no `audio`, while `done.reply` still carries the object: a host
+that asked for structured output can read what a voice cannot say.
+
 ### `audio`
 
 One WAV chunk as base64, with `idx` as its position in the turn.

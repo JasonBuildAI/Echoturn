@@ -67,6 +67,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+* Structured output no longer reaches a bubble or the ear. A `{...}` run that
+  parses as a JSON object is removed from the reply and from the sentence stream,
+  with the prose on both sides kept, wherever it stands - a model that writes its
+  data mid-answer has still written an answer. The streaming path holds a brace
+  that may open an object until it closes, so a comma or a question mark inside a
+  contract cannot cut a piece of it out, and a brace that opens a line and never
+  closes is dropped as half a contract. A reply that is nothing but an object has
+  no sentences at all; `done.reply` still carries it, because a host that asked
+  for structured output can read what a voice cannot say. Braces in prose are
+  untouched in both directions: the cut happens only when the object parses.
 * A mistyped setting is no longer ignored in silence. The shipped default is
   still used - one bad line must not stop a conversation - but `echoturn.config`
   logs one line naming the variable, the value it could not read and the default

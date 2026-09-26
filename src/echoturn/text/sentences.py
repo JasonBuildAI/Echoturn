@@ -14,8 +14,12 @@ A model that habitually opens with one would otherwise have the first character
 of every sentence cut off and synthesised on its own, which sounds like nothing
 so much as a nervous tic.
 
-Text inside a fenced code block is never spoken: it is a field for a program to
-read, and reading it aloud is the classic voice-assistant embarrassment.
+Text inside a fenced code block is never spoken, and neither is a JSON object: it
+is a field for a program to read, and reading it aloud is the classic
+voice-assistant embarrassment. A brace that may open an object holds the text
+from there on until it closes - a comma or a question mark inside the object is
+not the end of a sentence - and a run that never closes is dropped rather than
+read out.
 """
 from __future__ import annotations
 
@@ -24,6 +28,13 @@ from collections.abc import Iterable, Iterator
 from .fillers import strip_leading_filler, strip_leading_filler_keep_one
 from .punctuation import strip_decorations
 from .reasoning import strip_reasoning
+from .reply import (
+    cut_open_object,
+    is_data_object,
+    object_end,
+    opens_data_object,
+    strip_data_objects,
+)
 from .separators import SEP_PREFIX, STRAY_SEP, is_message_sep
 from .speakable import is_speakable
 from .stage import strip_stage_directions
@@ -66,6 +77,7 @@ def _clean_piece(piece: str, style: SpeechStyle) -> str:
     the message-aware layer decide.
     """
     text = strip_reasoning(piece)
+    text = cut_open_object(strip_data_objects(text))
     text = strip_stage_directions(text).strip()
     text = strip_decorations(
         text,
@@ -116,15 +128,40 @@ def iter_sentences(
                     yield head
                 in_fence = True
                 continue
-            hard = _first_index(buf, HARD_BOUNDARY)
+            # Data objects are judged before any boundary. A brace that may open
+            # one holds the text from there on, so a comma or a question mark
+            # inside a contract cannot cut a sentence out of it; a finished
+            # object is removed here, before the prose on either side of it is
+            # read. _clean_piece asks the same question once more on the way out.
+            stop = len(buf)
+            index = 0
+            while True:
+                brace = buf.find("{", index)
+                if brace < 0:
+                    stop = len(buf)
+                    break
+                if not opens_data_object(buf, brace):
+                    index = brace + 1
+                    continue
+                end = object_end(buf, brace)
+                if end is None:
+                    stop = brace
+                    break
+                if is_data_object(buf[brace:end]):
+                    buf = buf[:brace] + buf[end:]
+                    index = brace
+                    continue
+                index = end
+            scannable = buf[:stop]
+            hard = _first_index(scannable, HARD_BOUNDARY)
             if hard >= 0:
                 piece, buf = buf[:hard + 1], buf[hard + 1:]
                 piece = _clean_piece(piece, st)
                 if piece:
                     yield piece
                 continue
-            if len(buf) >= max_len:
-                soft = _last_index(buf, SOFT_BOUNDARY)
+            if len(scannable) >= max_len:
+                soft = _last_index(scannable, SOFT_BOUNDARY)
                 if soft > 0:
                     piece, buf = buf[:soft + 1], buf[soft + 1:]
                     piece = _clean_piece(piece, st)
