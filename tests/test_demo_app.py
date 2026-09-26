@@ -4,6 +4,7 @@ import json
 import re
 import shutil
 import subprocess
+import time
 from pathlib import Path
 
 import pytest
@@ -122,6 +123,14 @@ def test_the_browser_client_is_served_beside_the_page(demo):
     assert "echoturn-mic" in worklet.text
 
 
+def test_a_client_file_that_is_not_there_is_a_404_and_not_the_page(demo):
+    """Otherwise a page whose import is misspelled gets HTML and no complaint."""
+    client = build(demo)
+    missing = client.get("/client/no_such_module.js")
+    assert missing.status_code == 404
+    assert "<!DOCTYPE html>" not in missing.text
+
+
 def test_a_turn_streams_the_events_the_client_expects(demo):
     response = build(demo).post("/api/turn", json={"text": "hello"})
     assert response.status_code == 200
@@ -196,6 +205,42 @@ def test_the_default_system_prompt_is_used_when_none_is_given(demo):
     client = build(demo, llm=llm)
     client.post("/api/turn", json={"text": "hello"})
     assert llm.prompts[0][0]["content"] == demo.DEFAULT_SYSTEM_PROMPT
+
+
+def test_what_the_page_measured_reaches_the_turn_it_started(demo):
+    """The recogniser runs on the page's clock, so the page is asked for it."""
+    client = build(demo)
+    events = frames(
+        client.post(
+            "/api/turn",
+            json={
+                "text": "hello",
+                "input_kind": "voice",
+                "voice_call": True,
+                "client_timings": {"asr_verdict_ms": 480},
+            },
+        )
+    )
+    timings = events[-1]["timings"]
+    assert timings["asr_verdict_ms"] == 480
+    assert timings["total_first_audio_ms"] == 480 + timings["first_audio_ms"]
+
+
+def test_opening_a_call_warms_the_providers_and_starts_nothing(demo):
+    """The route the page calls when a call opens: an errand, not a turn."""
+    llm = FakeLLM([REPLY])
+    tts = FakeTTS()
+    store = InMemoryStore()
+    client = build(demo, llm=llm, tts=tts, store=store)
+    assert client.post("/api/call/start").json() == {"warm": True}
+    assert store.window("demo") == [], "no conversation was touched"
+    for _ in range(100):  # the errand runs on its own thread by design
+        if tts.streamed:
+            break
+        time.sleep(0.02)
+    assert llm.prompts, "the model was asked for its cheapest possible reply"
+    assert tts.streamed == 1, "the voice was asked for one word"
+    assert len(tts.texts[0]) <= 4, "and it was a word, not a sentence"
 
 
 def test_recognising_a_clip_reports_the_ask_and_the_probe(demo, monkeypatch, tmp_path):

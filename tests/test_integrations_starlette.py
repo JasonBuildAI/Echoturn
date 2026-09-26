@@ -13,12 +13,20 @@ from echoturn.integrations.starlette import LiveTurns, sse_response, sse_stream
 
 
 def drain(stream, cancel=None, **kwargs):
-    """Run one stream to the end and return the decoded events."""
+    """Run one stream to the end and return the decoded events.
+
+    Comment frames - the heartbeat that keeps an idle connection alive - are
+    counted and dropped, which is what a client does with them.
+    """
     cancel = cancel or threading.Event()
+    comments = []
 
     async def collect():
         out = []
         async for frame in sse_stream(stream, cancel, **kwargs):
+            if frame.startswith(":"):
+                comments.append(frame)
+                continue
             assert frame.startswith("data: ")
             assert frame.endswith("\n\n")
             out.append(json.loads(frame[len("data: "):-2]))
@@ -108,6 +116,36 @@ def test_a_client_that_leaves_stops_the_turn():
     asyncio.run(main())
     assert started.is_set()
     assert disconnected.is_set()
+
+
+def test_a_quiet_stream_is_kept_alive_without_being_told_anything(monkeypatch):
+    """A turn is quiet for seconds at a time, and an idle connection is dropped.
+
+    The frame carries no event, so a client that reads ``data:`` lines never
+    sees one - which is the whole reason a comment is safe to send.
+    """
+    monkeypatch.setattr("echoturn.integrations.starlette.HEARTBEAT_SEC", 0.05)
+
+    def stream():
+        yield events.ack("m1")
+        time.sleep(0.2)
+        yield events.done("hi")
+
+    cancel = threading.Event()
+    frames = []
+
+    async def collect():
+        async for frame in sse_stream(stream(), cancel):
+            frames.append(frame)
+
+    asyncio.run(collect())
+    beats = [frame for frame in frames if frame.startswith(":")]
+    assert beats, "a quiet stretch sends something to hold the connection"
+    assert all(frame.startswith(":") and "data:" not in frame for frame in beats)
+    assert [frame for frame in frames if frame.startswith("data: ")] == [
+        events.encode(events.ack("m1")),
+        events.encode(events.done("hi")),
+    ], "and the events are untouched, in order"
 
 
 def test_a_response_carries_the_headers_that_stop_proxy_buffering():

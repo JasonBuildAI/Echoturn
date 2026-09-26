@@ -51,6 +51,17 @@ SSE_HEADERS = {
     "X-Accel-Buffering": "no",
 }
 
+# How long the stream may say nothing before a comment frame goes out. A turn is
+# genuinely quiet for seconds at a time - the model is still writing, a synthesis
+# request is still out - and a connection that says nothing for long enough is
+# dropped by proxies, mobile networks and load balancers, all of which report it
+# as a failure of the turn. A comment frame is not an event: the client's frame
+# parser looks for ``data:`` lines and skips this one, which is exactly why it is
+# safe to send without agreeing on a new event type.
+HEARTBEAT_SEC = 5.0
+# A frame with no event in it. SSE reserves the colon for exactly this.
+HEARTBEAT = ": keep-alive\n\n"
+
 
 class LiveTurns:
     """One live turn per key, with the newest one winning.
@@ -160,7 +171,13 @@ async def sse_stream(
     threading.Thread(target=pump, name="echoturn-sse", daemon=True).start()
     try:
         while True:
-            event = await queue.get()
+            try:
+                event = await asyncio.wait_for(queue.get(), timeout=HEARTBEAT_SEC)
+            except asyncio.TimeoutError:
+                # Nothing to send, and that is the point: this frame exists so
+                # that the connection is not idle, not to say anything.
+                yield HEARTBEAT
+                continue
             if event is finished:
                 break
             yield encode(event)
