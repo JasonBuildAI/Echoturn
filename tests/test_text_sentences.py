@@ -77,6 +77,11 @@ def test_a_data_object_is_never_spoken_however_the_stream_is_cut():
     assert whole == ["好。", "后话。"]
 
 
+def test_a_real_newline_inside_a_string_does_not_split_the_object():
+    text = '好。{"note": "两\n行"}\n后话。'
+    assert list(iter_sentences(list(text))) == ["好。", "后话。"]
+
+
 def test_a_reply_that_is_only_an_object_says_nothing():
     assert list(iter_sentences(['{"mood": "warm"}'])) == []
     assert list(iter_sentences(list('{"mood": "warm"}'))) == []

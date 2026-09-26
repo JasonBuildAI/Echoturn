@@ -43,6 +43,12 @@ def test_a_brace_inside_a_string_does_not_end_the_object():
     assert clean_reply(raw) == "Silence.\n\nThen prose."
 
 
+def test_a_real_newline_inside_a_string_is_still_an_object():
+    """The field shape: a pretty-printed value the model let break its own line."""
+    raw = 'Good.\n{"note": "two\nlines"}\nDone.'
+    assert clean_reply(raw) == "Good.\n\nDone."
+
+
 def test_a_nested_object_is_cut_whole():
     raw = 'Right.\n{"a": {"b": 1}}\nDone.'
     assert clean_reply(raw) == "Right.\n\nDone."

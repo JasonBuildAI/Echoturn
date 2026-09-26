@@ -104,18 +104,25 @@ def object_end(text: str, start: int) -> int | None:
 
 
 def is_data_object(candidate: str) -> bool:
-    """Whether ``candidate`` parses as a JSON object, allowing a trailing comma.
+    """Whether ``candidate`` parses as a JSON object, allowing two near misses.
 
-    The trailing comma is the most common way a model writes almost-valid JSON,
-    and it is the one repair worth making before giving up on the cut.
+    Two ways a model writes almost-valid JSON are worth one retry each before
+    giving up on the cut: a trailing comma before the closing brace, and a real
+    newline written inside a string where an escape belongs. Both were seen in
+    the field - the second one is what a pretty-printed reply looks like when
+    the model lets its own line breaks into the value - and both are cheap to
+    accept, while the cost of not accepting one is the whole object being read
+    out loud. ``strict=False`` relaxes control characters inside strings and
+    nothing else, so an object that parses this way is still an object.
     """
     for attempt in (candidate, _TRAILING_COMMA.sub(r"\1", candidate)):
-        try:
-            parsed = json.loads(attempt)
-        except ValueError:
-            continue
-        if isinstance(parsed, dict):
-            return True
+        for strict in (True, False):
+            try:
+                parsed = json.loads(attempt, strict=strict)
+            except ValueError:
+                continue
+            if isinstance(parsed, dict):
+                return True
     return False
 
 
