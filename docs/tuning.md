@@ -145,16 +145,23 @@ is how the two end up disagreeing about the same silence.
 
 A value that cannot be read falls back to the default, and never to something
 else. `ECHOTURN_BARGE_RATIO=3,5` is 3.5, the shipped ratio - never 0, which
-would make every sound from the microphone an interruption.
+would make every sound from the microphone an interruption. It also says so:
+one line on the `echoturn.config` logger naming the variable, the value it could
+not read and the default it used instead - once per name per process, because a
+warning that repeats with every request is a warning nobody reads. A setting
+that looks changed while the process runs the old number has no symptom except
+behaviour, which is the most expensive kind of bug to find.
 
 `ECHOTURN_VAD_ENGINE` is the one setting with a fixed list. A name that is not
 one of them becomes `silero`, because this runs on the path of a live
-conversation and a typo in a config file should not stop the audio.
+conversation and a typo in a config file should not stop the audio - and that
+line names the variable too, for the same reason as above.
 
-An empty value counts as unset. A config file line of
-`ECHOTURN_TTS_PROVIDER=` means "use the default", and a factory that took the
-empty string at face value would report an unknown provider called `""` - which
-reads from the outside as "it stopped speaking and nobody changed anything".
+A **blank** value is not a mistake: it counts as unset, silently. A config file
+line of `ECHOTURN_TTS_PROVIDER=` means "use the default", and a factory that
+took the empty string at face value would report an unknown provider called
+`""` - which reads from the outside as "it stopped speaking and nobody changed
+anything".
 
 ## A different microphone needs a different number
 

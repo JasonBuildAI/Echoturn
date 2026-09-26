@@ -11,12 +11,23 @@ and friends read one variable. :data:`DIALS` is the table of every turn-taking
 threshold the pipeline uses, and it is the only place those numbers are written
 down - a second copy in a provider, or in a demo page, is how one of them ends up
 stale while everything still looks fine.
+
+The third thing this module does is refuse to be quiet. Every fallback below
+still returns the shipped value rather than failing, because one mistyped line in
+a config file must not stop a conversation - but it also writes one log line
+naming the variable, the value it could not read and the default it used. A
+setting that looks changed while the process runs the old number is the most
+expensive kind of bug there is: nothing is red, and the symptom is "I told it to
+do something else and it did not".
 """
 from __future__ import annotations
 
+import logging
 import os
 from pathlib import Path
 from typing import Any, NamedTuple
+
+log = logging.getLogger("echoturn.config")
 
 # Every setting this package reads starts with this. A generic name like LANG or
 # TIMEOUT does not belong to us, and a host that already sets one for its own
@@ -48,19 +59,60 @@ def env_str(name: str, default: str = "") -> str:
     return value.strip() if value and value.strip() else str(default)
 
 
+# Names that have already had their one line. A value is read every time it is
+# used - some of these are read per request - and a warning that repeats is a
+# warning nobody reads, which is the same failure as no warning at all.
+_warned: set[str] = set()
+
+
+def warn_once(name: str, text: str, *args: Any) -> None:
+    """Say one thing about one setting, once per process."""
+    if name in _warned:
+        return
+    _warned.add(name)
+    log.warning(text, *args)
+
+
+def _env_fallback(name: str, raw: str, default: Any, kind: str) -> None:
+    """Report a value that could not be read, naming what was used instead."""
+    warn_once(
+        name,
+        "%s=%r is not %s, so this setting runs on its default %s; fix the value "
+        "for it to take effect",
+        name,
+        raw,
+        kind,
+        default,
+    )
+
+
 def env_int(name: str, default: int) -> int:
-    """Read an integer; a blank or unreadable value falls back to ``default``."""
+    """Read an integer; a blank value takes ``default``, an unreadable one says so.
+
+    Blank and unreadable are deliberately different answers to the same reading.
+    ``KEY=`` is how a config file says "leave this alone", so it is not worth a
+    log line. ``KEY=12,5`` is somebody who meant to change this and did not, and
+    that one is worth exactly one line.
+    """
+    raw = env_str(name, "")
+    if not raw:
+        return int(default)
     try:
-        return int(env_str(name, str(default)))
+        return int(raw)
     except ValueError:
+        _env_fallback(name, raw, default, "an integer")
         return int(default)
 
 
 def env_float(name: str, default: float) -> float:
-    """Read a float; a blank or unreadable value falls back to ``default``."""
+    """Read a float; the same two answers as :func:`env_int`."""
+    raw = env_str(name, "")
+    if not raw:
+        return float(default)
     try:
-        return float(env_str(name, str(default)))
+        return float(raw)
     except ValueError:
+        _env_fallback(name, raw, default, "a number")
         return float(default)
 
 
@@ -166,24 +218,33 @@ def dial_env(key: str) -> str:
     raise KeyError(key)
 
 
-def dial_typed(kind: str, text: str, default: Any) -> Any:
+def dial_typed(kind: str, text: str, default: Any, name: str = "") -> Any:
     """Turn the text of one dial into a value, falling back to ``default``.
 
     The fallback is the whole point: a config file is edited by hand and a typo
     in it must not take the process down. It must also not be read as something
     else - an unreadable "barge ratio" of ``3,5`` is the default ratio, never
     zero, which would make every sound from the microphone an interruption.
+
+    ``name`` is the environment variable the text came from, when there is one.
+    With it, an unreadable value gets one line in the log; without it (a caller
+    passing a literal, as the demo page does when it prints the shipped values)
+    nothing is reported, because nothing was misconfigured.
     """
     text = str(text).strip()
     if kind == "int":
         try:
             return int(text)
         except ValueError:
+            if name:
+                _env_fallback(name, text, default, "an integer")
             return int(default)
     if kind == "float":
         try:
             return float(text)
         except ValueError:
+            if name:
+                _env_fallback(name, text, default, "a number")
             return float(default)
     if kind == "bool":
         return text.lower() not in FALSE_VALUES
@@ -200,10 +261,18 @@ def dials() -> dict[str, Any]:
     out: dict[str, Any] = {}
     for dial in DIALS:
         text = env_str(dial.env, str(dial.default))
-        value = dial_typed(dial.kind, text, dial.default)
+        value = dial_typed(dial.kind, text, dial.default, dial.env)
         if dial.options and value not in dial.options:
             # An engine name that is not one of the engines would otherwise be
             # carried all the way to the code that builds one, and fail there.
+            warn_once(
+                dial.env,
+                "%s=%r is not one of %s, so this setting runs on its default %s",
+                dial.env,
+                text,
+                ", ".join(dial.options),
+                dial.default,
+            )
             out[dial.key] = dial.default
             continue
         out[dial.key] = value

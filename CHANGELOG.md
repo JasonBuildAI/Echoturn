@@ -52,6 +52,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+* A mistyped setting is no longer ignored in silence. The shipped default is
+  still used - one bad line must not stop a conversation - but `echoturn.config`
+  logs one line naming the variable, the value it could not read and the default
+  it ran on instead. Once per name per process, because a value read per request
+  must not print per request. A blank value still means "unset" and stays
+  silent; a value outside a fixed list (`ECHOTURN_VAD_ENGINE`) names itself the
+  same way before falling back.
 * The publish guard crashed instead of reporting when a commit message was not
   pure ASCII: `subprocess` output was decoded with the machine's locale codec,
   which on Windows is not UTF-8. Both repository guards now ask for UTF-8
