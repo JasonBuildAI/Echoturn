@@ -19,7 +19,7 @@
 
 export { FALLBACK, Dials } from "./dials.js";
 export { FALLBACK_BLOCK, Microphone, WORKLET_NAME, WORKLET_URL } from "./mic.js";
-export { LEAD_SEC, PlaybackQueue } from "./queue.js";
+export { LEAD_SEC, SAMPLE_COUNT, PlaybackQueue } from "./queue.js";
 export { DROP, KEEP, PROBE, SEND, SilenceCursor } from "./cursor.js";
 export { FLOOR, LevelTracker, percentile } from "./levels.js";
 export { EchoTracker, GUARD_MS } from "./echo.js";
@@ -29,6 +29,7 @@ export { NO_VOICE_GIVE_UP_MS } from "./cursor.js";
 export {
   TRANSCRIBE_PATH,
   TURN_PATH,
+  WARM_PATH,
   askService,
   splitFrames,
   streamTurn,

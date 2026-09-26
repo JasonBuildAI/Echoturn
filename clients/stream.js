@@ -3,6 +3,12 @@
 /** The two routes this client calls. A host may point them elsewhere. */
 export const TURN_PATH = "/api/turn";
 export const TRANSCRIBE_PATH = "/api/transcribe";
+// The route a host may serve to open its providers' connections before anybody
+// speaks. It is named here for the same reason as the other two - the client
+// knows what a turn is and a page does not - but unlike them it is not a default:
+// a call only asks when a host hands it this URL (see ``Call``'s ``warmUrl``),
+// because a host without the route should not pay a 404 on every call.
+export const WARM_PATH = "/api/call/start";
 
 // The prefix every data frame carries. Server-sent events reserve a few other
 // field names, and a frame can carry nothing but a comment.

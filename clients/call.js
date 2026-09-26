@@ -68,6 +68,7 @@ export class Call {
     configUrl = "/config",
     turnUrl = TURN_PATH,
     transcribeUrl = TRANSCRIBE_PATH,
+    warmUrl = null,
     barge = true,
     dials = null,
     microphone = null,
@@ -91,6 +92,7 @@ export class Call {
     this.configUrl = configUrl;
     this.turnUrl = turnUrl;
     this.transcribeUrl = transcribeUrl;
+    this.warmUrl = warmUrl;
     this.barge = barge;
     this.clock = clock;
     this.fetch = fetchImpl;
@@ -136,6 +138,12 @@ export class Call {
     this.controller = null;
     this.pending = null;
     this.state = IDLE;
+    // What a meter draws when nobody is talking, and what the turn reports as
+    // the wait the recogniser added: see meter() and clientTimings().
+    this.micRms = 0;
+    this.lastVoiceAt = 0;
+    this.asrDoneAt = 0;
+    this.unspoken = [];
     this.queue = new PlaybackQueue({
       createContext,
       onSpeaking: (on) => {
@@ -159,11 +167,20 @@ export class Call {
     });
   }
 
-  /** Open the settings and the microphone; false when the microphone refuses. */
+  /**
+   * Open the settings and the microphone; false when the microphone refuses.
+   *
+   * ``warmUrl``, when a host gives one, is called here and forgotten: a route
+   * that makes the host's providers open their connections before anybody has
+   * said anything. Opening the microphone is what takes the time at this
+   * moment, so the two run together rather than in turn, and a failure is
+   * ignored - a host that cannot warm anything still has a working call.
+   */
   async start() {
     if (this.started) return true;
     await this.dials.load(this.configUrl, this.fetch ? { fetch: this.fetch } : {});
     this.rings();
+    if (this.warmUrl) this.warm();
     const opened = await this.microphone.open();
     if (!opened) {
       this.notice(this.microphone.error || "the microphone did not open");
@@ -172,6 +189,18 @@ export class Call {
     this.started = true;
     this.emitState();
     return true;
+  }
+
+  /** Ask the host to open its connections, without waiting for the answer. */
+  warm() {
+    const fetchImpl = this.fetch || globalThis.fetch;
+    if (!this.warmUrl || !fetchImpl) return null;
+    const call = fetchImpl(this.warmUrl, { method: "POST" });
+    // Nothing is done with the answer, and a rejection that nobody handled
+    // would surface as an unhandled promise - which is a page-level error for
+    // something that was only ever an optimisation.
+    if (call && typeof call.catch === "function") call.catch(() => {});
+    return call;
   }
 
   /** Close the microphone and stop everything. */
@@ -184,10 +213,21 @@ export class Call {
     this.capture = [];
     this.preroll.clear();
     this.carry.clear();
+    // The meter goes to nothing with the microphone: the last frame is not a
+    // level any more, and a host drawing it would freeze the room at whatever
+    // it happened to be when the call ended.
+    this.micRms = 0;
+    if (this.onLevel) this.onLevel(0);
     this.emitState();
   }
 
-  /** Stop capturing without closing the microphone. */
+  /**
+   * Stop capturing without closing the microphone.
+   *
+   * Muting silences *this* side of the call only. The reply keeps playing and
+   * keeps its level: muting your own microphone is not a reason for the person
+   * on the other end to disappear off the meter.
+   */
   setMuted(muted) {
     this.muted = Boolean(muted);
     if (this.muted) {
@@ -197,6 +237,8 @@ export class Call {
       this.preroll.clear();
       this.carry.clear();
       this.cursor.reset(this.clock());
+      this.micRms = 0;
+      this.lastVoiceAt = 0;
       if (this.onLevel) this.onLevel(0);
     }
     this.emitState();
@@ -222,13 +264,15 @@ export class Call {
 
   onFrame({ rms, pcm }) {
     if (!this.started) return;
-    if (this.onLevel) this.onLevel(this.muted ? 0 : rms);
+    this.micRms = this.muted ? 0 : rms;
+    if (this.onLevel) this.onLevel(this.micRms);
     if (this.muted) return;
     const rate = this.microphone.sampleRate;
     const dt = (pcm.length / rate) * 1000;
     const speech = this.level.isSpeech(rms);
     this.level.observe(rms);
     const now = this.clock();
+    if (speech) this.lastVoiceAt = now;
     // "The reply is being said" is not the same as "a turn is running". The
     // last chunk keeps playing for a second or more after the stream has
     // finished, and during that second a client that asked only about the turn
@@ -313,6 +357,11 @@ export class Call {
     this.capture = (carry ? carry.frames : []).concat(this.preroll.drain().frames);
     this.preroll.clear();
     this.cursor.reset(this.clock());
+    // The two ends of the measurement belong to this recording. Left over from
+    // the previous one they would still look like a pair, and a recording with
+    // no speech of its own would report the wait of a turn that is over.
+    this.lastVoiceAt = 0;
+    this.asrDoneAt = 0;
     // The speech measured before the carry arrives is not lost with it: it was
     // speech, and a sentence picked out of the buffer must not be thrown away
     // by the same gate that was meant to stop a creak from being sent.
@@ -365,6 +414,40 @@ export class Call {
   // ---- talking to the service -------------------------------------------
 
   /**
+   * What the recogniser cost, measured here, or null.
+   *
+   * The service can time everything from the moment the turn arrives, which is
+   * after the recogniser has already answered. The one delay it cannot see is
+   * the one a person notices - they stop speaking, and nothing happens - so it
+   * is measured here: from the last frame that was speech to the answer about
+   * the words.
+   *
+   * Null rather than zero when the two do not line up: an answer that arrived
+   * before the last thing said is not a fast recogniser, it is a measurement of
+   * something else, and reporting it as a wait would be a lie with a number on
+   * it.
+   */
+  clientTimings() {
+    if (!this.lastVoiceAt || !this.asrDoneAt) return null;
+    if (this.asrDoneAt < this.lastVoiceAt) return null;
+    return { asr_verdict_ms: Math.round(this.asrDoneAt - this.lastVoiceAt) };
+  }
+
+  /**
+   * The level a meter should draw right now: whoever is talking.
+   *
+   * The reply first, because that is what a call's own ring is about - and the
+   * reply keeps its level while the microphone is muted, since muting is one
+   * side of the call and not the other. `mic` and `her` are both returned so a
+   * host that wants two meters has the two numbers rather than a difference.
+   */
+  meter() {
+    const mic = meterValue(this.muted ? 0 : this.micRms);
+    const her = meterValue(this.queue.level());
+    return { mic, her, level: her > 0 ? her : mic };
+  }
+
+  /**
    * Ask about the audio recorded so far: the words, how much of it was speech,
    * and whether the speaker had finished.
    *
@@ -392,6 +475,9 @@ export class Call {
         signal: controller ? controller.signal : undefined,
         fetch: this.fetch || undefined,
       });
+      // Stamped before the sequence check: the recogniser answered at this
+      // moment whether or not this turn still wants the answer.
+      this.asrDoneAt = this.clock();
       if (seq !== this.seq) return "";
       if (!answer) {
         this.cursor.noteVerdict(null);
@@ -434,12 +520,14 @@ export class Call {
     // as the listener's own line has to be the same text the turn was started
     // from, including when that text was typed rather than spoken.
     if (this.onTurn) this.onTurn(message, inputKind);
+    const timings = inputKind === "voice" ? this.clientTimings() : null;
     const body = {
       text: message,
       session: this.session,
       input_kind: inputKind,
       voice_call: this.voiceCall,
       ...(this.systemPrompt ? { system_prompt: this.systemPrompt } : {}),
+      ...(timings ? { client_timings: timings } : {}),
     };
     try {
       await streamTurn({
@@ -488,11 +576,16 @@ export class Call {
     }
     if (kind === "done") {
       this.reply = String(event.reply || "");
+      // The messages whose text never made a sound. A host that shows them as
+      // voice it cannot play has shown the wrong thing twice over, so the list
+      // is kept here and passed on rather than left to be inferred.
+      this.unspoken = (event.unspoken || []).map((index) => Number(index));
       if (this.onDone) {
         this.onDone({
           reply: this.reply,
           timings: event.timings || {},
           warnings: event.warnings || [],
+          unspoken: this.unspoken,
         });
       }
       const warnings = event.warnings || [];

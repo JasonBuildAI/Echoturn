@@ -22,6 +22,7 @@ for.
 from __future__ import annotations
 
 import base64
+import contextlib
 import threading
 from collections.abc import Iterable, Iterator, Mapping
 from pathlib import Path
@@ -65,6 +66,10 @@ class TurnRequest(BaseModel):
     speak: bool = True
     system_prompt: str = ""
     quote: dict | None = None
+    # What the page measured before it sent this: above all how long the
+    # recogniser took after the speaker stopped. Optional, because a host that
+    # does not measure it is not sending wrong information, just less of it.
+    client_timings: dict | None = None
 
 
 class TranscribeRequest(BaseModel):
@@ -102,6 +107,25 @@ def record_turn(
         elif kind == "aborted" and said:
             store.append(key, "assistant", "".join(said))
         yield dict(event)
+
+
+def warm_providers(llm: Any, tts: Any) -> None:
+    """One cheap request to each provider, whose only purpose is the connection.
+
+    Keeping a connection open is the shared client's job (see
+    ``echoturn.providers.http``); this is what happens when it is closed anyway -
+    after a long enough quiet spell - and it opens the two connections on the
+    host's own time rather than in the middle of somebody's first turn. The
+    requests are the smallest ones the providers accept: one token, one word.
+
+    Failures are swallowed: a host whose providers are slow to answer still has a
+    working call, and nothing was asked for but a socket.
+    """
+    with contextlib.suppress(Exception):
+        for _ in llm.stream([{"role": "user", "content": "."}]):
+            break  # the first token *is* the open connection; the rest is cost
+    with contextlib.suppress(Exception):
+        tts.synth_stream("hi")
 
 
 def probe(audio: bytes) -> dict:
@@ -170,6 +194,21 @@ def create_app(
         """The whole dial table, so the page holds no copy of any of these numbers."""
         return dials()
 
+    @app.post("/api/call/start")
+    def call_start() -> dict:
+        """Called once when a call opens. Warms the providers and answers at once.
+
+        It starts no turn, writes nothing down and holds no call id: the two
+        requests it triggers belong to nobody, and a page forgets the answer (see
+        ``clients/call.js``, which fires this without awaiting it). On a thread of
+        its own so that opening the microphone - the slow, user-visible part of
+        starting a call - never waits for a socket.
+        """
+        threading.Thread(
+            target=warm_providers, args=(model, voice), name="warm", daemon=True
+        ).start()
+        return {"warm": True}
+
     @app.post("/api/transcribe")
     def transcribe(req: TranscribeRequest) -> dict:
         try:
@@ -204,6 +243,7 @@ def create_app(
                 system_prompt=req.system_prompt or DEFAULT_SYSTEM_PROMPT,
                 history=window.window(key)[:-1],
                 quote=req.quote,
+                client_timings=req.client_timings,
             ),
             deps,
             cancel=cancel,

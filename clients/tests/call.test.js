@@ -354,3 +354,129 @@ test("a typed turn is reported as typed, not as heard", async () => {
   await call.say("typed words");
   assert.deepEqual(sent, [{ text: "typed words", kind: "text" }]);
 });
+
+test("the turn carries the wait the recogniser added", async () => {
+  const { call, asked, device } = build({
+    transcripts: [{ text: "hello there" }],
+    turns: [[{ type: "done", reply: "Hello." }]],
+  });
+  await call.start();
+  await utter({ device });
+  const timings = asked.turn[0].body.client_timings;
+  assert.ok(timings, "a spoken turn reports what the recogniser cost");
+  assert.equal(typeof timings.asr_verdict_ms, "number");
+  assert.ok(timings.asr_verdict_ms >= 0);
+});
+
+test("a typed turn carries no recogniser timing", async () => {
+  const { call, asked } = build({ turns: [[{ type: "done", reply: "ok" }]] });
+  await call.start();
+  await call.say("typed words");
+  assert.equal(asked.turn[0].body.client_timings, undefined);
+});
+
+test("an answer about audio that has since gone is not reported as a wait", async () => {
+  const { call, asked, device, clock } = build({
+    transcripts: [{ text: "half a" }],
+    turns: [[{ type: "done", reply: "go on" }]],
+  });
+  await call.start();
+  await utter({ device });
+  // The recogniser answered, and then somebody spoke again: the pair of stamps
+  // no longer describes one wait, and a number here would be a made-up one.
+  call.asrDoneAt = 0;
+  call.lastVoiceAt = clock.now;
+  assert.equal(call.clientTimings(), null);
+});
+
+test("the meter follows the reply once it is the reply that is talking", async () => {
+  const { call } = build({
+    createContext: () => ({
+      currentTime: 0,
+      state: "running",
+      destination: {},
+      decodeAudioData: async () => ({ duration: 1 }),
+      createBufferSource: () => ({ connect() {}, start() {}, stop() {} }),
+      createAnalyser: () => ({
+        fftSize: 0,
+        connect() {},
+        disconnect() {},
+        // Loud on purpose: the question here is which side of the call the
+        // meter is reading, not how a level is scaled.
+        getByteTimeDomainData: (samples) => samples.fill(255),
+      }),
+    }),
+  });
+  await call.start();
+  call.onEvent({ type: "audio", idx: 0, data: CHUNK });
+  await settle();
+  const meter = call.meter();
+  assert.ok(meter.her > 0, "she is audible");
+  assert.equal(meter.level, meter.her, "the meter draws whoever is talking");
+  call.setMuted(true);
+  assert.equal(call.meter().her, meter.her, "muting this side does not silence hers");
+  assert.equal(call.meter().mic, 0);
+  call.queue.stop();
+  assert.equal(call.meter().level, 0, "nothing playing and nothing said");
+});
+
+test("the meter reads the microphone when the reply is not playing", async () => {
+  const { call, device } = build({});
+  await call.start();
+  device.feed(20, { rms: SPEECH, frameMs: FRAME_MS });
+  const meter = call.meter();
+  assert.equal(meter.her, 0);
+  assert.ok(meter.mic > 0);
+  assert.equal(meter.level, meter.mic);
+});
+
+test("hanging up takes the meter to nothing instead of freezing it", async () => {
+  const { call, device, levels } = build({});
+  await call.start();
+  device.feed(20, { rms: SPEECH, frameMs: FRAME_MS });
+  assert.ok(call.meter().level > 0);
+  call.stop();
+  assert.equal(call.meter().level, 0);
+  assert.equal(levels[levels.length - 1], 0, "a host drawing onLevel is told too");
+});
+
+test("a call opens the host's connections when it is given somewhere to ask", async () => {
+  const warmed = [];
+  const { asked, fetchImpl } = fakeFetch({ config: {}, turns: [] });
+  const { call, device } = build({
+    warmUrl: "/api/call/start",
+    fetch: async (url, options) => {
+      if (url === "/api/call/start") {
+        warmed.push(options && options.method);
+        return { ok: true, status: 200 };
+      }
+      return fetchImpl(url, options);
+    },
+  });
+  assert.equal(await call.start(), true);
+  assert.deepEqual(warmed, ["POST"], "asked once, without being awaited");
+  assert.equal(device.opened, 1, "and it did not hold up the microphone");
+  assert.equal(asked.config.length, 1);
+});
+
+test("a warm request that fails is not the call's problem", async () => {
+  const { call, notices, device } = build({
+    warmUrl: "/api/call/start",
+    fetch: async (url) => {
+      if (url === "/api/call/start") throw new Error("connection refused");
+      return { ok: true, status: 200, json: async () => ({}) };
+    },
+  });
+  assert.equal(await call.start(), true);
+  await settle();
+  assert.deepEqual(notices, [], "nothing is said about an optimisation failing");
+  assert.equal(device.opened, 1);
+});
+
+test("a call with nowhere to warm sends no warm request", async () => {
+  const { call, asked } = build({ turns: [] });
+  await call.start();
+  assert.deepEqual(asked.config.length, 1);
+  assert.equal(call.warmUrl, null);
+  assert.equal(call.warm(), null);
+});

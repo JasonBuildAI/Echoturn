@@ -10,6 +10,11 @@ import { bytesFromBase64 } from "./base64.js";
 // begins mid-sample or not at all.
 export const LEAD_SEC = 0.015;
 
+// How many samples one level reading looks at: about ten milliseconds at the
+// rates a browser runs at, which is one bar of a meter and short enough that a
+// level follows a syllable.
+export const SAMPLE_COUNT = 512;
+
 function defaultContext() {
   const Ctor = globalThis.AudioContext || globalThis.webkitAudioContext;
   return new Ctor();
@@ -44,6 +49,10 @@ export class PlaybackQueue {
     this.waiting = new Map();
     this.playAt = 0;
     this.live = [];
+    // One sample buffer for every level reading, created on first use and reused
+    // after that: a meter reads this once per animation frame, and a fresh array
+    // each time is garbage the page pays for and nobody asked for.
+    this.samples_ = null;
   }
 
   /** The audio context, started on first use and resumed if it went to sleep. */
@@ -102,7 +111,20 @@ export class PlaybackQueue {
     const ctx = this.context();
     const source = ctx.createBufferSource();
     source.buffer = clip;
-    source.connect(ctx.destination);
+    // The reply's own level, for a meter that should follow whoever is talking.
+    // An analyser is inserted only when the context has one: where it does not
+    // (an old browser, a test stub) the reply simply has no measurable level, and
+    // nothing invents one - a meter that made up a shape for a voice would be
+    // worse than a meter that stays flat.
+    const analyser = typeof ctx.createAnalyser === "function" ? ctx.createAnalyser() : null;
+    if (analyser) {
+      analyser.fftSize = SAMPLE_COUNT;
+      source.connect(analyser);
+      analyser.connect(ctx.destination);
+      source.analyser_ = analyser;
+    } else {
+      source.connect(ctx.destination);
+    }
     const at = Math.max(this.playAt, ctx.currentTime + LEAD_SEC);
     source.start(at);
     this.playAt = at + clip.duration;
@@ -110,8 +132,52 @@ export class PlaybackQueue {
     this.live.push(source);
     source.onended = () => {
       this.live = this.live.filter((item) => item !== source);
+      if (analyser) {
+        try {
+          analyser.disconnect();
+        } catch {
+          // Already gone with the context. Nothing to release.
+        }
+      }
       if (!this.live.length && this.onSpeaking) this.onSpeaking(false);
     };
+  }
+
+  /**
+   * How loud the reply is right now, as the frame's own rms, or 0.
+   *
+   * Read from the audio itself rather than inferred from the stream: a chunk
+   * that arrived is not a chunk that is audible, and a meter driven by events
+   * would jump on the silence between two sentences. The largest of the live
+   * clips is the answer - one of them is what is coming out of the speaker.
+   *
+   * Zero also means "not measurable", which is the honest reading: no analyser
+   * in this context, or nothing playing.
+   */
+  level() {
+    if (!this.live.length) return 0;
+    if (!this.samples_) this.samples_ = new Uint8Array(SAMPLE_COUNT);
+    let best = 0;
+    for (const source of this.live) {
+      const analyser = source.analyser_;
+      if (!analyser) continue;
+      try {
+        analyser.getByteTimeDomainData(this.samples_);
+      } catch {
+        continue; // a context that went away mid-frame is not a broken meter
+      }
+      let sum = 0;
+      for (let i = 0; i < this.samples_.length; i += 1) {
+        // Unsigned bytes, 128 in the middle of the range: the deviation from it
+        // is the sample, and the rms of those is the level the rest of this
+        // client measures a microphone with.
+        const value = (this.samples_[i] - 128) / 128;
+        sum += value * value;
+      }
+      const rms = Math.sqrt(sum / this.samples_.length);
+      if (rms > best) best = rms;
+    }
+    return best;
   }
 
   /**

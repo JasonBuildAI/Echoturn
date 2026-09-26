@@ -51,7 +51,7 @@
 // place to show the level, and two buttons. There is deliberately no number in
 // this file, because a page that holds its own copy of a threshold is a page
 // that keeps using it after the service has changed.
-import { Call, meterValue } from "/client/echoturn-client.js";
+import { Call, WARM_PATH } from "/client/echoturn-client.js";
 
 const log = document.getElementById("log");
 const callButton = document.getElementById("call");
@@ -74,6 +74,10 @@ function line(className, content = "") {
 
 const call = new Call({
   session: "demo",
+  // A route this demo has (see app.py) whose only job is to open the providers'
+  // connections before anybody speaks. A call that skips it still works; it just
+  // pays for the handshake inside its first turn instead.
+  warmUrl: WARM_PATH,
   onState: (state) => {
     stateLabel.textContent = state;
     // The one state that means a person can be heard over the top of the reply.
@@ -89,11 +93,18 @@ const call = new Call({
     }
     bubble.textContent += sentence;
   },
-  onLevel: (rms) => {
-    needle.style.width = `${Math.round(meterValue(rms) * 100)}%`;
-  },
   onNotice: (message) => line("broke", message),
 });
+
+// The meter is asked for once per frame rather than pushed with each frame of
+// audio: the reply's level has no frame callback of its own, and a page that
+// only ever heard about microphone frames would draw a flat line while the reply
+// is the thing being heard.
+function drawMeter() {
+  requestAnimationFrame(drawMeter);
+  needle.style.width = `${Math.round(call.meter().level * 100)}%`;
+}
+drawMeter();
 
 callButton.addEventListener("click", async () => {
   if (call.started) {

@@ -5,10 +5,34 @@ import { LEAD_SEC, PlaybackQueue } from "../queue.js";
 
 /** A stand-in for the audio clock, with just enough of it to schedule on. */
 class FakeContext {
-  constructor() {
+  constructor({ analyser = true } = {}) {
     this.currentTime = 10;
     this.destination = { name: "destination" };
     this.started = [];
+    this.analysers = [];
+    if (analyser) {
+      const analysers = this.analysers;
+      this.createAnalyser = () => {
+        const created = {
+          fftSize: 0,
+          connected: 0,
+          disconnected: 0,
+          connect() {
+            created.connected += 1;
+          },
+          disconnect() {
+            created.disconnected += 1;
+          },
+          // Alternating extremes rather than silence: any level above the floor
+          // is enough to tell "read from the audio" apart from "guessed".
+          getByteTimeDomainData(samples) {
+            for (let i = 0; i < samples.length; i += 1) samples[i] = i % 2 ? 255 : 1;
+          },
+        };
+        analysers.push(created);
+        return created;
+      };
+    }
   }
 
   createBufferSource() {
@@ -45,8 +69,8 @@ function base64(text) {
  * that a change in what the queue passes along fails here rather than silently
  * turning every chunk into a failed decode.
  */
-function build({ durations = {}, speaking = [] } = {}) {
-  const context = new FakeContext();
+function build({ durations = {}, speaking = [], analyser = true } = {}) {
+  const context = new FakeContext({ analyser });
   const queue = new PlaybackQueue({
     createContext: () => context,
     onSpeaking: (on) => speaking.push(on),
@@ -139,4 +163,33 @@ test("the speaking state follows the audio, not the event stream", async () => {
   assert.equal(queue.speaking, true, "still one chunk playing");
   context.started[1].finish();
   assert.deepEqual(speaking, [true, false]);
+});
+
+test("the reply's own level is read from the audio that is playing", async () => {
+  const { context, queue } = build({ durations: { a: 1 } });
+  assert.equal(queue.level(), 0, "nothing playing is nothing to measure");
+  await queue.enqueue(0, base64("a"));
+  assert.equal(context.analysers.length, 1, "one analyser per live clip");
+  assert.equal(context.analysers[0].connected, 1, "in the path to the output");
+  assert.ok(queue.level() > 0, "the reply has a level while it is audible");
+});
+
+test("a finished clip takes its analyser with it", async () => {
+  const { context, queue } = build({ durations: { a: 1, b: 1 } });
+  await queue.enqueue(0, base64("a"));
+  await queue.enqueue(1, base64("b"));
+  const [first, second] = context.started;
+  assert.equal(context.analysers.length, 2);
+  first.finish();
+  assert.equal(context.analysers[0].disconnected, 1, "nothing is left connected to the output");
+  assert.ok(queue.level() > 0, "the clip that is still playing is the one measured");
+  second.finish();
+  assert.equal(queue.level(), 0, "nothing is playing, so there is no level");
+});
+
+test("a context with no analyser reports no level rather than inventing one", async () => {
+  const { queue } = build({ durations: { a: 1 }, analyser: false });
+  await queue.enqueue(0, base64("a"));
+  assert.equal(queue.speaking, true, "the audio still plays");
+  assert.equal(queue.level(), 0);
 });
