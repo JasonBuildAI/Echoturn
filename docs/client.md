@@ -50,6 +50,7 @@ mixing them is not a second implementation of anything.
 ```js
 const call = new Call({
   session: "demo",
+  warmUrl: WARM_PATH,                      // optional: see "Warming the call"
   onTurn: (text) => show("you", text),
   onSubtitle: (sentence, i) => show("her", sentence, i),
   onState: (state) => label(state),
@@ -65,6 +66,28 @@ call.stop();                              // close the microphone
 
 `start()` loads the settings from `/config` and opens the microphone. It returns
 false when the microphone refuses, having already said why through `onNotice`.
+
+Once a turn finishes, `onDone` is handed `{ reply, timings, warnings, unspoken }`
+- the event as it arrived, plus the same decision the client made about it.
+`unspoken` is the messages that produced no audio: a host that would otherwise
+render those as voice bubbles has the list it needs to render them as text.
+
+## Warming the call
+
+A connection that has been idle for longer than the keep-alive window is gone,
+and the turn that has to reopen it is always the first one - the one somebody is
+waiting on. A host that serves a route doing one cheap request to each of its
+providers can have the call ask for it as the call opens, which pays the
+handshake while the microphone is still being opened:
+
+```js
+new Call({ warmUrl: WARM_PATH })   // "/api/call/start", the name this client uses
+```
+
+It is opt-in, and `WARM_PATH` is not a default: a host without the route would
+otherwise pay a 404 on every call. The request is sent with `POST` and never
+awaited - opening the microphone is what takes the time at that moment - and its
+answer is ignored, including a failure.
 
 ## The state it reports
 
@@ -119,6 +142,38 @@ chunk's playback adds its whole cost to the gap between sentences.
 `stop()` raises a generation number, so a chunk still being decoded is discarded
 on its way out rather than played after the interruption - which is how a
 stopped reply says two more sentences anyway.
+
+## The meter
+
+`call.meter()` answers one question - how loud is the call right now - and it
+answers it about **whoever is talking**:
+
+```js
+requestAnimationFrame(function draw() {
+  requestAnimationFrame(draw);
+  needle.style.width = `${Math.round(call.meter().level * 100)}%`;
+});
+```
+
+The reply's level is measured from the audio itself, through an analyser that
+`queue.js` puts in the playback path while a chunk is live, and it is the largest
+of the clips currently playing. A context without `createAnalyser` (an old
+browser, a test stub) reports zero, and nothing invents a shape for a voice that
+cannot be measured - a meter that made one up would be worse than a flat line.
+
+Asked for per frame rather than pushed with each frame of audio, because a
+microphone frame arrives about every 2.7 ms while the reply has no frame callback
+at all: a meter driven by the microphone alone draws a flat line while the reply
+is the thing being heard. `meter()` also returns the two sides separately
+(`mic`, `her`), and muting silences only the microphone's - the other side of the
+call does not disappear from the meter because this one stopped listening.
+
+The client also measures the wait that happens before the turn: from the last
+frame that was speech to the recogniser's answer, sent as
+`client_timings.asr_verdict_ms` and reported by `done.timings` (see
+[events.md](events.md)). It is what makes the turn able to say how long it took
+from somebody stopping to hearing something, and it is sent only when both ends
+of it belong to the same recording.
 
 ## Capture
 

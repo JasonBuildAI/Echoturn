@@ -145,16 +145,21 @@ after a process starts - and the first request to a service that has put its own
 model to sleep - pays for the handshake and for the provider's cold start, and if
 the host has a moment before the first turn (a call screen opening, a
 conversation being created), one tiny request spent there moves that cost off the
-first reply's critical path. That is host code by design: this package has no
-call lifecycle to hang it on, and only the host knows which providers it wired
-up.
+first reply's critical path. The route itself is host code by design: this
+package has no call lifecycle to hang it on, and only the host knows which
+providers it wired up. The client's half is not host code: `clients/call.js`
+asks such a route as a call opens when it is given one (`warmUrl`, see
+[client.md](client.md)), and `examples/minimal_call/app.py` implements a route
+in ten lines.
 
 ## Failures
 
 A provider that fails raises. The pipeline catches it at the chunk it happened
 in and continues: one failed synthesis is a `warning` on `done` naming the
-chunk, and the text of that sentence is still in `reply`. A failed model call is
-an `error` event, because there is no reply to continue with.
+chunk, and the text of that sentence is still in `reply`. A chunk that produced
+no audio at all is sent once more first, and a message whose text still made no
+sound after that is listed in `done.unspoken`. A failed model call is an `error`
+event, because there is no reply to continue with.
 
 The message on an `error` event has been through `safe_message`, which strips
 URLs, keys and internal paths. The original goes to the host's log.

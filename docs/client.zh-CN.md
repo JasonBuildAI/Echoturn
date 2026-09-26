@@ -46,6 +46,7 @@
 ```js
 const call = new Call({
   session: "demo",
+  warmUrl: WARM_PATH,                      // 可选：见「把这一通电话焐热」
   onTurn: (text) => show("you", text),
   onSubtitle: (sentence, i) => show("her", sentence, i),
   onState: (state) => label(state),
@@ -61,6 +62,23 @@ call.stop();                              // 关掉麦克风
 
 `start()` 会从 `/config` 取设置并打开麦克风；麦克风拒绝时它返回 false，并且已经通过
 `onNotice` 说明了原因。
+
+一轮结束时，`onDone` 拿到的是 `{ reply, timings, warnings, unspoken }` —— 事件原样，
+加上客户端对它的同一个判断。`unspoken` 是一条声音都没出来的那几条消息：本来会把它们画成
+语音气泡的宿主，手上就有了改成文字所需的名单。
+
+## 把这一通电话焐热
+
+空闲超过 keepalive 窗口的连接就没了，而替它重开一次握手的，永远是**第一轮** —— 有人正等着
+的那一轮。宿主如果提供一个「给自己的供应商各打一次最便宜的请求」的路由，就可以让通话在接通的
+那一刻去请求它，把这笔握手的开销付在麦克风还在打开的时候：
+
+```js
+new Call({ warmUrl: WARM_PATH })   // "/api/call/start"，本客户端给它的名字
+```
+
+它是**选用**的，`WARM_PATH` 不是默认值：否则没有这条路由的宿主会每通电话付一次 404。请求用
+`POST` 发出、从不被等待 —— 那一刻真正花时间的是打开麦克风 —— 它的回答（包括失败）一律不管。
 
 ## 它报告的状态
 
@@ -105,6 +123,30 @@ call.stop();                              // 关掉麦克风
 
 `stop()` 会抬高一个代号，于是还在解码的片会在出厂路上被丢掉，而不是在打断之后被播出来 ——
 一条已经停掉的回复，就是这样又说了两句话。
+
+## 电平表
+
+`call.meter()` 只回答一个问题 —— 通话此刻有多响 —— 而它回答的是**正在说话的那个人**：
+
+```js
+requestAnimationFrame(function draw() {
+  requestAnimationFrame(draw);
+  needle.style.width = `${Math.round(call.meter().level * 100)}%`;
+});
+```
+
+她那一侧的电平是从**音频本身**量出来的：`queue.js` 在某一片还活着的时候把一个 analyser 接进
+播放链路，取当前所有在播片段里最大的那一个。拿不到 `createAnalyser` 的上下文（老浏览器、测试
+替身）报 0，而谁也不去给一段量不到的嗓音编一条波形 —— 编出来的电平表比一条直线更糟。
+
+按帧去问、而不是跟着每一帧音频被推过来，是因为麦克风的一帧大约每 2.7 毫秒就到一次，而她那侧
+根本没有帧回调：只靠麦克风驱动的电平表，会在**听见的正是回复**的时候画一条直线。`meter()`
+同时把两侧分开给（`mic`、`her`），而静音只关掉麦克风那一侧 —— 不会因为这一侧不再听了，通话的
+另一侧就从电平表上消失。
+
+客户端还量了发生在一轮之前的那段等待：从最后一帧人声到识别给出结果，作为
+`client_timings.asr_verdict_ms` 发出，由 `done.timings` 报出来（见 [events.zh-CN.md](events.zh-CN.md)）。
+正是它让一轮能说出「从你说完到听见她开口」用了多久；也只有当它的两端属于同一段录音时才会发。
 
 ## 采集
 

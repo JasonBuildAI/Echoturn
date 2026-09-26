@@ -40,7 +40,7 @@ Everything above is provider-agnostic and runs offline against mock providers.
 | **Your memory and persona layer stays yours** | Echoturn remembers nothing and decides nothing about what the model is told: it hands you a turn, you assemble the prompt. |
 | **Turn-taking that admits when it is guessing** | "Is this sentence finished?" is measured - how much real speech there was, plus an endpointing model - and falls back to the silence deadline only when it must. Missing models are reported, not swallowed. |
 | **Interruptions keep the user's words** | Speak over synthesis and what you said becomes the opening of the next turn, with playback gated against the assistant's own echo. |
-| **Audio cannot play out of order** | Synthesis finishes out of order by nature; playback is ordered strictly by chunk index, so nothing is skipped, doubled or interleaved. |
+| **Audio cannot play out of order** | Synthesis finishes out of order by nature; playback is ordered strictly by chunk index, so nothing is skipped, doubled or interleaved. A chunk that fails to synthesise is sent once more, and one that still makes no sound is named in `done.unspoken` rather than left to be noticed. |
 | **First sound before the last token** | Text is flushed to synthesis in small chunks while the model is still writing. `bench/latency.py --compare` shows you where that wins - and it also shows you where it loses. |
 | **Offline by construction** | Mock ASR, LLM and TTS run the whole pipeline with no key, no network and no model download; CI is green on Python 3.10-3.12 with no secrets. |
 

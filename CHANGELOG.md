@@ -8,6 +8,29 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+* `done.unspoken`: the messages whose text never made a sound, as message
+  indices. A bubble that cannot be played is the worst of both worlds, so the
+  turn names the ones that stayed silent rather than leaving a host to infer it
+  from which `audio` events arrived. A message with some of its audio is not
+  listed; a text-only turn lists nothing.
+* `timings.asr_verdict_ms`, `timings.asr_to_first_token_ms`,
+  `timings.first_token_to_first_audio_ms` and `timings.total_first_audio_ms`,
+  built from what the caller sends in `TurnInput.client_timings`. The recogniser
+  runs on the caller's clock, so the delay a person actually notices - they
+  stopped speaking, and nothing happened - is the one delay this server cannot
+  see. The browser client measures it (`Call.clientTimings`) and sends it with a
+  spoken turn; `total_first_audio_ms` is that whole wait. A missing, negative or
+  non-numeric value leaves the derived gaps `None`.
+* `Call.meter()`: the level a meter should draw, from **whoever is talking**.
+  The reply's own level is read from an analyser `PlaybackQueue` puts in the
+  playback path while a chunk is live - the largest of the clips playing - and
+  muting silences only the microphone's side of it. A context with no
+  `createAnalyser` reports zero rather than an invented shape.
+* `Call({ warmUrl })` and `WARM_PATH`: a call can ask a host route to open its
+  providers' connections as the call opens, so the handshake is paid while the
+  microphone is still being opened rather than inside the first reply. Opt-in,
+  sent without being awaited, and its answer - including a failure - is ignored.
+  `examples/minimal_call/app.py` implements such a route in ten lines.
 * `ECHOTURN_SPECULATE_CALL_MS` (`speculate_call_ms`, 180 ms): the candidate
   pause that asks the service whether a sentence is finished, for a call. The
   browser client reads it through `Dials.probeMs({ inCall })`, so a call asks
@@ -67,6 +90,21 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+* A chunk of speech that produced no audio is sent to synthesis once more before
+  the turn ends, and a message still silent after that is named in
+  `done.unspoken`. The commonest failure here is a rate limit or a connection
+  that dropped, and a sentence missing from the middle of a reply is far more
+  noticeable than one extra request. A chunk that got *some* of its audio out is
+  never retried - half of it has already been heard, and a retry would say the
+  beginning twice. The second attempt happens before the chunk releases the ones
+  behind it, so the audio still comes out where it belongs.
+* The meter no longer freezes at its last reading when a call ends, and muting
+  no longer zeroes the other side of the call (see `Call.meter()`).
+* An SSE stream that says nothing for five seconds sends a comment frame
+  (`: keep-alive`). A turn is genuinely quiet while the model writes and while a
+  synthesis request is out, and an idle connection is dropped by proxies, mobile
+  networks and load balancers - all of which report it as the turn failing. The
+  frame carries no `data:` line, so a client that reads events never sees one.
 * A closing fence marker that arrives split across chunks closes the fence
   again. The stream hands over a token at a time, and the fence body dropped a
   half-marker along with the code it was skipping - so the fence never closed and

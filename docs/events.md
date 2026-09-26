@@ -18,7 +18,7 @@ the only shape that survives the three things a turn does at once.
 | `sentence` | `i`, `text` | one speakable sentence of message `i` |
 | `audio` | `idx`, `i`, `mime`, `data` | one WAV chunk, base64, position `idx` |
 | `aborted` | `reason` | the turn was stopped. Terminal |
-| `done` | `reply`, `timings`, `warnings`, `extra` | the finished turn. Terminal |
+| `done` | `reply`, `timings`, `warnings`, `unspoken`, `extra` | the finished turn. Terminal |
 | `error` | `error` | the turn failed. Terminal |
 
 `aborted`, `done` and `error` are `echoturn.events.TERMINAL`: exactly one of
@@ -100,7 +100,12 @@ made it out rather than nothing.
 | `timings.first_audio_ms` | when the first chunk was ready to play |
 | `timings.total_ms` | the whole turn |
 | `timings.chunks` | how many chunks were submitted |
+| `timings.asr_verdict_ms` | what the caller measured for the recogniser, or `None` |
+| `timings.asr_to_first_token_ms` | from that verdict to the first token |
+| `timings.first_token_to_first_audio_ms` | from the first token to the first sound |
+| `timings.total_first_audio_ms` | from the end of speech to the first sound |
 | `warnings` | parts that worked badly, above all a chunk that never spoke |
+| `unspoken` | the messages that made no sound at all |
 | `extra.input_kind` | what the host labelled this turn |
 
 `warnings` is not for things that broke the turn - those are `error` events. It
@@ -108,11 +113,33 @@ is for a chunk of speech that failed to synthesise: the text is still in
 `reply` and can still be read, and the caller deserves to know it was never
 spoken. The format is `"chunk 3: ProviderError"`.
 
+A chunk that produced no audio at all is sent to synthesis a second time before
+the turn ends, because a rate limit or a dropped connection usually clears, and
+a sentence missing from the middle of a reply is far more noticeable than one
+extra request. A chunk that got *some* of its audio out is not retried - half of
+it has already been heard - and one that is still silent after the second
+attempt stays in `warnings`.
+
+`unspoken` is that failure one level up: the messages whose text never made a
+sound, as message indices. A message with some of its audio is not listed - it
+plays - so this is the list a host needs to decide what to *show* instead of
+playing, which is the one thing the pipeline cannot decide for it. A text-only
+turn lists nothing: none of it was ever meant to be spoken.
+
 `first_token_ms` and `first_audio_ms` are `None` when they never happened, which
 is the honest answer for a text-only turn. Every number here is measured from the
-same origin - the moment the host handed this turn over - so the gap between any
-two of them is arithmetic rather than another field. The speech recognition that
-came before that moment runs on the host's clock, and is not reported here.
+same origin - the moment the host handed this turn over - except the ones derived
+from `asr_verdict_ms`, which is why that one is named separately.
+
+That number is the odd one out because the recogniser runs on the *caller's*
+clock: the turn request is sent after it has answered, so this server cannot
+measure it and must be told. `TurnInput.client_timings` is where a caller hands
+it over, and `clients/` measures it - from the last frame that was speech to the
+answer about the words. When it is missing, the three derived gaps are `None`
+rather than a number measured from the wrong origin; when it is present,
+`total_first_audio_ms` is the wait a person judges: they stopped speaking, and
+then they heard something. A value that is not a whole number, or is negative, is
+refused the same way - a copied string is not a measurement.
 
 ### `error`
 
@@ -147,6 +174,15 @@ data: {"type":"sentence","i":0,"text":"Hello there."}\n\n
 Text is not escaped to ASCII. Every hop between here and a browser is UTF-8, and
 `\uXXXX` escapes would triple the size of a Chinese reply for no benefit anybody
 can observe.
+
+A frame that carries no event is a comment, and the bridge sends one every five
+seconds of quiet (`: keep-alive`). A turn is genuinely silent for seconds at a
+time - the model is still writing, a synthesis request is still out - and a
+connection that says nothing for long enough is dropped by proxies, mobile
+networks and load balancers, all of which report it as the turn failing. The
+frame carries no `data:` line, so a client that reads events never sees one; it
+exists for everything in between that is watching the socket rather than the
+stream.
 
 `echoturn.integrations.starlette.sse_response` is the whole bridge: a
 synchronous generator on its own thread, pushing into an asyncio queue, with

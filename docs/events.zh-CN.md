@@ -18,7 +18,7 @@
 | `sentence` | `i`、`text` | 第 `i` 条消息里的一句可朗读的话 |
 | `audio` | `idx`、`i`、`mime`、`data` | 一片 WAV（base64），位置是 `idx` |
 | `aborted` | `reason` | 这一轮被停了。终局 |
-| `done` | `reply`、`timings`、`warnings`、`extra` | 这一轮完成。终局 |
+| `done` | `reply`、`timings`、`warnings`、`unspoken`、`extra` | 这一轮完成。终局 |
 | `error` | `error` | 这一轮失败。终局 |
 
 `aborted`、`done` 与 `error` 就是 `echoturn.events.TERMINAL`：正好其中一个结束一条流，
@@ -83,16 +83,36 @@
 | `timings.first_audio_ms` | 第一片可以播的时刻 |
 | `timings.total_ms` | 整轮 |
 | `timings.chunks` | 一共提交了几片 |
+| `timings.asr_verdict_ms` | 调用方量到的识别耗时，没有就是 `None` |
+| `timings.asr_to_first_token_ms` | 从那个判定到第一个 token |
+| `timings.first_token_to_first_audio_ms` | 从第一个 token 到第一声 |
+| `timings.total_first_audio_ms` | 从说完到听见第一声 |
 | `warnings` | 做得不好的部分，首先是某一片没能念出来 |
+| `unspoken` | 一条声音都没出来的那几条消息 |
 | `extra.input_kind` | 宿主给这一轮打的标签 |
 
 `warnings` 不是放「把这一轮搞坏的事」的地方 —— 那些是 `error` 事件。它放的是某一片语音
 合成失败：文本还在 `reply` 里、还读得到，而调用方有资格知道那句话从没被念出来。
 格式是 `"chunk 3: ProviderError"`。
 
+一片**一点音频都没出来**时，收尾之前会再送一次合成 —— 限流和断连接通常都会缓过来，而一句
+话从回复中间消失，比多花一次请求显眼得多。已经出来过一部分的片不会重试（半句已经被人听见
+了），重试之后仍然没声音的留在 `warnings` 里。
+
+`unspoken` 是同一件事往上一层的说法：一个字的声都没出过的那几条消息，给的是消息序号。
+出过一部分声音的消息不在里面 —— 它播得出来 —— 所以这份名单正是宿主需要的：决定「这条改用
+文字展示」而不是播放，而这恰恰是流水线替宿主做不了的那个决定。纯文字轮里它是空的：那一轮
+本来就一个字都不该出声。
+
 `first_token_ms` 与 `first_audio_ms` 在**没发生过**时是 `None` —— 对一轮纯文字来说，
-这才是诚实的答案。这一组数字**共用同一个原点**：宿主把这一轮交过来的那一刻，所以任意两个
-之差是算术，不必再占一个字段。至于那一刻之前的语音识别，它走的是宿主自己的钟，这里不报。
+这才是诚实的答案。这一组数字**共用同一个原点**：宿主把这一轮交过来的那一刻；由
+`asr_verdict_ms` 推出来的那几个是例外，所以它单独列出来。
+
+它是例外，是因为识别走的是**调用方**的钟：这一轮的请求是在识别出结果之后才发出去的，所以
+本服务量不到它，只能被告知。`TurnInput.client_timings` 就是调用方交它的地方，而量它的是
+`clients/`：从最后一帧人声到拿到文字的那一刻。没交时，推出来的三个间隔是 `None`，而不是
+一个从错的原点量出来的数；交了就有一件**人在判断的事** —— 你说完，然后你听见她开口 —— 这个
+时长就是 `total_first_audio_ms`。不是整数、或者为负的值同样拒收：抄来的字符串不是测量。
 
 ### `error`
 
@@ -124,6 +144,11 @@ data: {"type":"sentence","i":0,"text":"Hello there."}\n\n
 
 文本不转义成 ASCII。从这里到浏览器之间的每一跳都是 UTF-8，而 `\uXXXX` 转义会让一条中文
 回复的体积涨到三倍，换不来任何**看得见**的好处。
+
+不带事件的帧就是注释帧，桥在安静满五秒时发一帧（`: keep-alive`）。一轮里确实会有好几秒
+什么事件都没有 —— 模型还在写、某次合成请求还在路上 —— 而一条啥也不说的连接，安静够久就会
+被代理、移动网络和负载均衡掐掉，它们报出来的都是「这一轮失败了」。这一帧里没有 `data:` 行，
+所以只读事件的客户端永远看不到它；它是给中间那些盯着 socket、而不是盯着事件流的家伙看的。
 
 `echoturn.integrations.starlette.sse_response` 就是整座桥：一个同步生成器在自己的线程上，
 推进一个 asyncio 队列，带上 `Cache-Control: no-cache`、`Connection: keep-alive` 和
